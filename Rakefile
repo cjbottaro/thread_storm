@@ -5,8 +5,8 @@ begin
   require 'jeweler'
   Jeweler::Tasks.new do |gem|
     gem.name = "thread_pool"
-    gem.summary = %Q{TODO: one-line summary of your gem}
-    gem.description = %Q{TODO: longer description of your gem}
+    gem.summary = %Q{Simple thread pool with a few advanced features.}
+    gem.description = %Q{Simple thread pool with timeouts, default values, error handling, state tracking and unit tests.}
     gem.email = "cjbottaro@alumni.cs.utexas.edu"
     gem.homepage = "http://github.com/cjbottaro/thread_pool"
     gem.authors = ["Christopher J. Bottaro"]
