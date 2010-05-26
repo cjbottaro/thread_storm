@@ -22,6 +22,11 @@ class PoolParty
     @executions = []
     @workers = (1..@options[:size]).collect{ Worker.new(@queue, @options) }
     @start_time = Time.now
+    if block_given?
+      yield(self)
+      join
+      shutdown
+    end
   end
   
   def size

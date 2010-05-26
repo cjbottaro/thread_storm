@@ -100,4 +100,16 @@ class TestPoolParty < Test::Unit::TestCase
     assert_equal %w[one two three four five], pool.values
   end
   
+  def test_new_with_block
+    thread_count = Thread.list.length
+    pool = PoolParty.new :size => 1 do |party|
+      party.execute{ sleep(0.01); "one" }
+      party.execute{ sleep(0.01); "two" }
+      party.execute{ sleep(0.01); "three" }
+    end
+    assert_equal thread_count, Thread.list.length
+    assert_equal %w[one two three], pool.values
+    assert_in_delta 0.03, pool.duration, 0.001
+  end
+  
 end
