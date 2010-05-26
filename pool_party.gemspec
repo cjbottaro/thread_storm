@@ -4,7 +4,7 @@
 # -*- encoding: utf-8 -*-
 
 Gem::Specification.new do |s|
-  s.name = %q{thread_pool}
+  s.name = %q{pool_party}
   s.version = "0.1.1"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
@@ -24,22 +24,16 @@ Gem::Specification.new do |s|
      "README.rdoc",
      "Rakefile",
      "VERSION",
-     "lib/thread_pool.rb",
-     "lib/thread_pool/active_support.rb",
-     "lib/thread_pool/execution.rb",
-     "lib/thread_pool/worker.rb",
-     "test/helper.rb",
-     "test/test_thread_pool.rb",
-     "thread_pool.gemspec"
+     "test/helper.rb"
   ]
-  s.homepage = %q{http://github.com/cjbottaro/thread_pool}
+  s.homepage = %q{http://github.com/cjbottaro/pool_party}
   s.rdoc_options = ["--charset=UTF-8"]
   s.require_paths = ["lib"]
   s.rubygems_version = %q{1.3.6}
   s.summary = %q{Simple thread pool with a few advanced features.}
   s.test_files = [
     "test/helper.rb",
-     "test/test_thread_pool.rb"
+     "test/test_pool_party.rb"
   ]
 
   if s.respond_to? :specification_version then

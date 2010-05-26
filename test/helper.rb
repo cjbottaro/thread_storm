@@ -3,7 +3,7 @@ require 'test/unit'
 
 $LOAD_PATH.unshift(File.join(File.dirname(__FILE__), '..', 'lib'))
 $LOAD_PATH.unshift(File.dirname(__FILE__))
-require 'thread_pool'
+require 'pool_party'
 
 class Test::Unit::TestCase
   

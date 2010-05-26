@@ -1,18 +1,18 @@
 require "thread"
-require "thread_pool/active_support"
-require "thread_pool/execution"
-require "thread_pool/worker"
+require "pool_party/active_support"
+require "pool_party/execution"
+require "pool_party/worker"
 
-class ThreadPool
+class PoolParty
   
-  # Array of executions in order as defined by calls to ThreadPool#execute.
+  # Array of executions in order as defined by calls to PoolParty#execute.
   attr_reader :executions
   
   # Valid options are
   #   :size => How many threads to spawn.  Default is 2.
   #   :timeout => Max time an execution is allowed to run before terminating it.  Default is nil (no timeout).
   #   :default_value => Value of an execution if it times out or errors.  Default is nil.
-  #   :reraise => True if you want exceptions reraised when ThreadPool#join is called.  Default is true.
+  #   :reraise => True if you want exceptions reraised when PoolParty#join is called.  Default is true.
   def initialize(options = {})
     @options = options.option_merge :size => 2,
                                     :timeout => nil,
@@ -24,8 +24,12 @@ class ThreadPool
     @start_time = Time.now
   end
   
+  def size
+    @options[:size]
+  end
+  
   # Create and execution and schedules it to be run by the thread pool.
-  # Return value is a ThreadPool::Execution.
+  # Return value is a PoolParty::Execution.
   def execute(*args, &block)
     returning(Execution.new(args, &block)) do |execution|
       @executions << execution
@@ -34,7 +38,7 @@ class ThreadPool
   end
   
   # Block until all pending executions are finished running.
-  # Reraises any exceptions caused by executions unless <tt>:reraise => false</tt> was passed to ThreadPool#new.
+  # Reraises any exceptions caused by executions unless <tt>:reraise => false</tt> was passed to PoolParty#new.
   def join
     @executions.each do |execution|
       Thread.pass while not execution.finished?
@@ -43,7 +47,7 @@ class ThreadPool
     @finish_time = Time.now
   end
   
-  # Calls ThreadPool#join, then collects the values of each execution.
+  # Calls PoolParty#join, then collects the values of each execution.
   def values
     join
     @executions.collect{ |execution| execution.value }
@@ -61,7 +65,8 @@ class ThreadPool
   # Signals the worker threads to terminate and blocks until they do.
   def shutdown
     Thread.pass while not @queue.empty?
-    @workers.each{ |worker| worker.die!; @queue << :wakeup }
+    @workers.each{ |worker| worker.die! }
+    @workers.length.times{ @queue << :wakeup }
     @workers.each{ |worker| worker.join }
     @finish_time = Time.now
     true

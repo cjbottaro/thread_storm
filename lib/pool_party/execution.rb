@@ -1,4 +1,4 @@
-class ThreadPool
+class PoolParty
   # Encapsulates a unit of work to be sent to the thread pool.
   class Execution
     attr_writer :start_time, :finish_time, :value, :exception, :timed_out #:nodoc:

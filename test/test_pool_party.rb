@@ -1,9 +1,9 @@
 require 'helper'
 
-class TestThreadPool < Test::Unit::TestCase
+class TestPoolParty < Test::Unit::TestCase
   
   def test_no_concurrency
-    pool = ThreadPool.new :size => 1
+    pool = PoolParty.new :size => 1
     pool.execute{ sleep(0.01); "one" }
     pool.execute{ sleep(0.01); "two" }
     pool.execute{ sleep(0.01); "three" }
@@ -12,7 +12,7 @@ class TestThreadPool < Test::Unit::TestCase
   end
   
   def test_partial_concurrency
-    pool = ThreadPool.new :size => 2
+    pool = PoolParty.new :size => 2
     pool.execute{ sleep(0.01); "one" }
     pool.execute{ sleep(0.01); "two" }
     pool.execute{ sleep(0.01); "three" }
@@ -21,7 +21,7 @@ class TestThreadPool < Test::Unit::TestCase
   end
   
   def test_full_concurrency
-    pool = ThreadPool.new :size => 3
+    pool = PoolParty.new :size => 3
     pool.execute{ sleep(0.01); "one" }
     pool.execute{ sleep(0.01); "two" }
     pool.execute{ sleep(0.01); "three" }
@@ -30,7 +30,7 @@ class TestThreadPool < Test::Unit::TestCase
   end
   
   def test_timeout_no_concurrency
-    pool = ThreadPool.new :size => 1, :timeout => 0.015
+    pool = PoolParty.new :size => 1, :timeout => 0.015
     pool.execute{ sleep(0.01); "one" }
     pool.execute{ sleep(0.02); "two" }
     pool.execute{ sleep(0.01); "three" }
@@ -45,7 +45,7 @@ class TestThreadPool < Test::Unit::TestCase
   # 2 0.015s ------
   # 3 0.01s      ----
   def test_timeout_partial_concurrency
-    pool = ThreadPool.new :size => 2, :timeout => 0.015
+    pool = PoolParty.new :size => 2, :timeout => 0.015
     pool.execute{ sleep(0.01); "one" }
     pool.execute{ sleep(0.02); "two" }
     pool.execute{ sleep(0.01); "three" }
@@ -56,7 +56,7 @@ class TestThreadPool < Test::Unit::TestCase
   end
   
   def test_timeout_full_concurrency
-    pool = ThreadPool.new :size => 3, :timeout => 0.015
+    pool = PoolParty.new :size => 3, :timeout => 0.015
     pool.execute{ sleep(0.01); "one" }
     pool.execute{ sleep(0.02); "two" }
     pool.execute{ sleep(0.01); "three" }
@@ -67,7 +67,7 @@ class TestThreadPool < Test::Unit::TestCase
   end
   
   def test_timeout_with_default_value
-    pool = ThreadPool.new :size => 1, :timeout => 0.015, :default_value => "timed out"
+    pool = PoolParty.new :size => 1, :timeout => 0.015, :default_value => "timed out"
     pool.execute{ sleep(0.01); "one" }
     pool.execute{ sleep(0.02); "two" }
     pool.execute{ sleep(0.01); "three" }
@@ -80,7 +80,7 @@ class TestThreadPool < Test::Unit::TestCase
   def test_shutdown
     original_thread_count = Thread.list.length
     
-    pool = ThreadPool.new :size => 3
+    pool = PoolParty.new :size => 3
     pool.execute{ sleep(0.01); "one" }
     pool.execute{ sleep(0.01); "two" }
     pool.execute{ sleep(0.01); "three" }
@@ -92,7 +92,7 @@ class TestThreadPool < Test::Unit::TestCase
   end
   
   def test_args
-    pool = ThreadPool.new :size => 2
+    pool = PoolParty.new :size => 2
     %w[one two three four five].each do |word|
       pool.execute(word){ |w| sleep(0.01); w }
     end

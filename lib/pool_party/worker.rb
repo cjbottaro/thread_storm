@@ -1,4 +1,4 @@
-class ThreadPool
+class PoolParty
   class Worker #:nodoc:
     
     # Takes the threadsafe queue and options from the thread pool.
@@ -6,6 +6,9 @@ class ThreadPool
       @queue   = queue
       @options = options
       @thread  = Thread.new(self){ |me| me.run }
+      
+      # Timeout.timeout has to take a float (or nil for no timeout).
+      @options[:timeout] = @options[:timeout].to_f unless @options[:timeout].nil?
     end
     
     # Pop executions and process them until we're signaled to die.

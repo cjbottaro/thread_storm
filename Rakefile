@@ -4,11 +4,11 @@ require 'rake'
 begin
   require 'jeweler'
   Jeweler::Tasks.new do |gem|
-    gem.name = "thread_pool"
+    gem.name = "pool_party"
     gem.summary = %Q{Simple thread pool with a few advanced features.}
     gem.description = %Q{Simple thread pool with timeouts, default values, error handling, state tracking and unit tests.}
     gem.email = "cjbottaro@alumni.cs.utexas.edu"
-    gem.homepage = "http://github.com/cjbottaro/thread_pool"
+    gem.homepage = "http://github.com/cjbottaro/pool_party"
     gem.authors = ["Christopher J. Bottaro"]
     #gem.add_development_dependency "thoughtbot-shoulda", ">= 0"
     # gem is a Gem::Specification... see http://www.rubygems.org/read/chapter/20 for additional settings
@@ -47,7 +47,7 @@ Rake::RDocTask.new do |rdoc|
   version = File.exist?('VERSION') ? File.read('VERSION') : ""
 
   rdoc.rdoc_dir = 'rdoc'
-  rdoc.title = "thread_pool #{version}"
+  rdoc.title = "pool_party #{version}"
   rdoc.rdoc_files.include('README*')
   rdoc.rdoc_files.include('lib/**/*.rb')
 end

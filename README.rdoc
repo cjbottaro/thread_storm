@@ -1,4 +1,4 @@
-= thread_pool
+= pool_party
 
 Simple thread pool with a few advanced features.
 
@@ -11,7 +11,7 @@ Simple thread pool with a few advanced features.
 
 == Example
 
-  pool = ThreadPool.new :size => 2
+  pool = PoolParty.new :size => 2
   pool.execute{ sleep(0.01); "a" }
   pool.execute{ sleep(0.01); "b" }
   pool.execute{ sleep(0.01); "c" }
@@ -22,7 +22,7 @@ Simple thread pool with a few advanced features.
 
 You can query the state of an execution.
 
-  pool = ThreadPool.new :size => 2
+  pool = PoolParty.new :size => 2
   execution = pool.execute{ sleep(0.01); "a" }
   pool.execute{ sleep(0.01); "b" }
   pool.execute{ sleep(0.01); "c" }
@@ -37,7 +37,7 @@ You can query the state of an execution.
 
 You can restrict how long executions are allowed to run for.
 
-  pool = ThreadPool.new :size => 2, :timeout => 0.02, :default_value => "failed"
+  pool = PoolParty.new :size => 2, :timeout => 0.02, :default_value => "failed"
   pool.execute{ sleep(0.01); "a" }
   pool.execute{ sleep(0.03); "b" }
   pool.execute{ sleep(0.01); "c" }
@@ -50,9 +50,9 @@ You can restrict how long executions are allowed to run for.
 
 == Error handling
 
-If an execution causes an exception, it will be reraised when ThreadPool#join (or any other method that calls ThreadPool#join) is called, unless you pass <tt>:reraise => false</tt> to ThreadPool#new.  The exception is stored in ThreadPool::Execution#exception.
+If an execution causes an exception, it will be reraised when PoolParty#join (or any other method that calls PoolParty#join) is called, unless you pass <tt>:reraise => false</tt> to PoolParty#new.  The exception is stored in PoolParty::Execution#exception.
 
-  pool = ThreadPool.new :size => 2, :reraise => false, :default_value => "failure"
+  pool = PoolParty.new :size => 2, :reraise => false, :default_value => "failure"
   execution = pool.execute{ raise("busted"); "a" }
   pool.join
   execution.value # "failure"
