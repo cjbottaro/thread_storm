@@ -58,6 +58,20 @@ If an execution causes an exception, it will be reraised when PoolParty#join (or
   execution.value # "failure"
   execution.exception # RuntimeError: busted
 
+== Joining vs shutting down
+
+PoolParty#join blocks until all pending executions are done running.  It does not actually kill the pool party's worker threads (incase you want to do more work).  PoolParty#shutdown actually kills the worker threads.
+
+Sometimes it can be a pain to remember to call #shutdown, so as a convenience, you can pass a block to PoolParty#new and #join and #shutdown will be called for you.
+
+ party = PoolParty.new do |p|
+   p.execute{ "a" }
+   p.execute{ "b" }
+   p.execute{ "c" }
+ end
+ # At this point, #join and #shutdown have been called.
+ party.values # ["a", "b", "c"]
+
 == Copyright
 
 Copyright (c) 2010 Christopher J. Bottaro. See LICENSE for details.
