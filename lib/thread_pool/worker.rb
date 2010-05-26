@@ -15,7 +15,7 @@ class ThreadPool
     
     # Pop an execution off the queue and process it, or pass off control to a different thread.
     def pop_and_process_execution
-      if (execution = @queue.pop)
+      if (execution = @queue.pop).instance_of?(Execution)
         process_execution_with_timeout(execution)
       else
         Thread.pass

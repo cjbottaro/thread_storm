@@ -60,7 +60,9 @@ class ThreadPool
   
   # Signals the worker threads to terminate and blocks until they do.
   def shutdown
-    @workers.each{ |worker| worker.die!; worker.join }
+    Thread.pass while not @queue.empty?
+    @workers.each{ |worker| worker.die!; @queue << :wakeup }
+    @workers.each{ |worker| worker.join }
     @finish_time = Time.now
     true
   end

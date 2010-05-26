@@ -84,10 +84,20 @@ class TestThreadPool < Test::Unit::TestCase
     pool.execute{ sleep(0.01); "one" }
     pool.execute{ sleep(0.01); "two" }
     pool.execute{ sleep(0.01); "three" }
+    pool.join
     
     assert_equal original_thread_count + 3, Thread.list.length
     pool.shutdown
     assert_equal original_thread_count, Thread.list.length
+  end
+  
+  def test_args
+    pool = ThreadPool.new :size => 2
+    %w[one two three four five].each do |word|
+      pool.execute(word){ |w| sleep(0.01); w }
+    end
+    pool.join
+    assert_equal %w[one two three four five], pool.values
   end
   
 end
