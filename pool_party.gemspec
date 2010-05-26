@@ -5,7 +5,7 @@
 
 Gem::Specification.new do |s|
   s.name = %q{pool_party}
-  s.version = "0.1.1"
+  s.version = "0.2.0"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Christopher J. Bottaro"]
@@ -24,7 +24,13 @@ Gem::Specification.new do |s|
      "README.rdoc",
      "Rakefile",
      "VERSION",
-     "test/helper.rb"
+     "lib/pool_party.rb",
+     "lib/pool_party/active_support.rb",
+     "lib/pool_party/execution.rb",
+     "lib/pool_party/worker.rb",
+     "pool_party.gemspec",
+     "test/helper.rb",
+     "test/test_pool_party.rb"
   ]
   s.homepage = %q{http://github.com/cjbottaro/pool_party}
   s.rdoc_options = ["--charset=UTF-8"]
