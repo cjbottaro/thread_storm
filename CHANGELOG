@@ -1,3 +1,7 @@
+0.2.0
+ - Renamed to pool_party.
+ - Fixed PoolParty#shutdown for real.
+
 0.1.1
   - Fixed ThreadPool#shutdown.
 
