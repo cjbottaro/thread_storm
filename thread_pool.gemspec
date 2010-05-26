@@ -5,11 +5,11 @@
 
 Gem::Specification.new do |s|
   s.name = %q{thread_pool}
-  s.version = "0.1.0"
+  s.version = "0.1.1"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Christopher J. Bottaro"]
-  s.date = %q{2010-05-25}
+  s.date = %q{2010-05-26}
   s.description = %q{Simple thread pool with timeouts, default values, error handling, state tracking and unit tests.}
   s.email = %q{cjbottaro@alumni.cs.utexas.edu}
   s.extra_rdoc_files = [
@@ -19,6 +19,7 @@ Gem::Specification.new do |s|
   s.files = [
     ".document",
      ".gitignore",
+     "CHANGELOG",
      "LICENSE",
      "README.rdoc",
      "Rakefile",
@@ -28,7 +29,8 @@ Gem::Specification.new do |s|
      "lib/thread_pool/execution.rb",
      "lib/thread_pool/worker.rb",
      "test/helper.rb",
-     "test/test_thread_pool.rb"
+     "test/test_thread_pool.rb",
+     "thread_pool.gemspec"
   ]
   s.homepage = %q{http://github.com/cjbottaro/thread_pool}
   s.rdoc_options = ["--charset=UTF-8"]
