@@ -5,7 +5,7 @@ Simple thread pool with a few advanced features.
 == Features
 
   * execution state querying
-  * timeouts
+  * timeouts and configurable timeout implementation
   * graceful error handling
   * unit tests
 
@@ -64,13 +64,29 @@ PoolParty#join blocks until all pending executions are done running.  It does no
 
 Sometimes it can be a pain to remember to call #shutdown, so as a convenience, you can pass a block to PoolParty#new and #join and #shutdown will be called for you.
 
- party = PoolParty.new do |p|
-   p.execute{ "a" }
-   p.execute{ "b" }
-   p.execute{ "c" }
+  party = PoolParty.new do |p|
+    p.execute{ "a" }
+    p.execute{ "b" }
+    p.execute{ "c" }
+  end
+  # At this point, #join and #shutdown have been called.
+  party.values # ["a", "b", "c"]
+
+== Configurable timeout method
+
+<tt>Timeout.timeout</tt> is unreliable in MRI 1.8.x.  To address this, you can have PoolParty use an alternative implementation.
+
+ require "system_timer"
+ party = PoolParty.new :timeout_method => SystemTimer.method(:timeout) do
+   ...
  end
- # At this point, #join and #shutdown have been called.
- party.values # ["a", "b", "c"]
+ 
+The <tt>:timeout_method</tt> option takes any callable object (i.e. <tt>responds_to?(:call)</tt>) that implements something similar to <tt>Timeout.timeout</tt> (i.e. takes the same arguments and raises <tt>Timeout::Error</tt>).
+
+  require "system_timer"
+  party = PoolParty.new :timeout_method => Proc.new{ |seconds, &block| SystemTimer.timeout(seconds, &block) }
+    ...
+  end
 
 == Copyright
 

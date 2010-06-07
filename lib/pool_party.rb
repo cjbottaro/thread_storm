@@ -1,4 +1,5 @@
 require "thread"
+require "timeout"
 require "pool_party/active_support"
 require "pool_party/execution"
 require "pool_party/worker"
@@ -11,11 +12,13 @@ class PoolParty
   # Valid options are
   #   :size => How many threads to spawn.  Default is 2.
   #   :timeout => Max time an execution is allowed to run before terminating it.  Default is nil (no timeout).
+  #   :timeout_method => An object that implements something like Timeout.timeout via #call.  Default is Timeout.method(:timeout).
   #   :default_value => Value of an execution if it times out or errors.  Default is nil.
   #   :reraise => True if you want exceptions reraised when PoolParty#join is called.  Default is true.
   def initialize(options = {})
     @options = options.option_merge :size => 2,
                                     :timeout => nil,
+                                    :timeout_method => Timeout.method(:timeout),
                                     :default_value => nil,
                                     :reraise => true
     @queue = Queue.new # This is threadsafe.

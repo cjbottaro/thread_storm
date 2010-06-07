@@ -7,7 +7,6 @@ class PoolParty
       @options = options
       @thread  = Thread.new(self){ |me| me.run }
       
-      # Timeout.timeout has to take a float (or nil for no timeout).
       @options[:timeout] = @options[:timeout].to_f unless @options[:timeout].nil?
     end
     
@@ -29,7 +28,11 @@ class PoolParty
     def process_execution_with_timeout(execution)
       execution.start_time = Time.now
       begin
-        timeout{ process_execution(execution) }
+        if @options[:timeout]
+          @options[:timeout_method].call(@options[:timeout]){ process_execution(execution) }
+        else
+          process_execution(execution)
+        end
       rescue Timeout::Error => e
         execution.value = @options[:default_value]
         execution.timed_out = true
@@ -43,11 +46,6 @@ class PoolParty
     # Seriously, process the execution.
     def process_execution(execution)
       execution.value = execution.block.call(*execution.args)
-    end
-    
-    # Alias Timeout.timeout.
-    def timeout
-      Timeout.timeout(@options[:timeout]){ yield }
     end
     
     # So the thread pool can signal this worker's thread to end.
