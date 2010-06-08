@@ -1,6 +1,6 @@
 require "thread"
 
-class PoolParty
+class ThreadStorm
   class Queue #:nodoc:
     
     def initialize

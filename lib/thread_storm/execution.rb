@@ -1,4 +1,4 @@
-class PoolParty
+class ThreadStorm
   # Encapsulates a unit of work to be sent to the thread pool.
   class Execution
     attr_writer :value, :exception #:nodoc:

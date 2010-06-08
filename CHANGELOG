@@ -1,7 +1,8 @@
 0.4.0
+ - Renamed to thread_storm... ugh.
  - Simplified the shutdown process by using my own thread safe queue.
  - Removed timing based tests.
- - Much more efficient PoolParty#join.
+ - Much more efficient ThreadStorm#join.
  - Added Execution#join.
  - Configurable Timeout implementation.
 

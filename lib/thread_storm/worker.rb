@@ -1,4 +1,4 @@
-class PoolParty
+class ThreadStorm
   class Worker #:nodoc:
     attr_reader :thread
     

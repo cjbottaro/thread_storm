@@ -1,4 +1,4 @@
-= pool_party
+= thread_storm
 
 Simple thread pool with a few advanced features.
 
@@ -11,7 +11,7 @@ Simple thread pool with a few advanced features.
 
 == Example
 
-  pool = PoolParty.new :size => 2
+  pool = ThreadStorm.new :size => 2
   pool.execute{ sleep(0.01); "a" }
   pool.execute{ sleep(0.01); "b" }
   pool.execute{ sleep(0.01); "c" }
@@ -22,7 +22,7 @@ Simple thread pool with a few advanced features.
 
 You can query the state of an execution.
 
-  pool = PoolParty.new :size => 2
+  pool = ThreadStorm.new :size => 2
   execution = pool.execute{ sleep(0.01); "a" }
   pool.execute{ sleep(0.01); "b" }
   pool.execute{ sleep(0.01); "c" }
@@ -37,7 +37,7 @@ You can query the state of an execution.
 
 You can restrict how long executions are allowed to run for.
 
-  pool = PoolParty.new :size => 2, :timeout => 0.02, :default_value => "failed"
+  pool = ThreadStorm.new :size => 2, :timeout => 0.02, :default_value => "failed"
   pool.execute{ sleep(0.01); "a" }
   pool.execute{ sleep(0.03); "b" }
   pool.execute{ sleep(0.01); "c" }
@@ -50,9 +50,9 @@ You can restrict how long executions are allowed to run for.
 
 == Error handling
 
-If an execution causes an exception, it will be reraised when PoolParty#join (or any other method that calls PoolParty#join) is called, unless you pass <tt>:reraise => false</tt> to PoolParty#new.  The exception is stored in PoolParty::Execution#exception.
+If an execution causes an exception, it will be reraised when ThreadStorm#join (or any other method that calls ThreadStorm#join) is called, unless you pass <tt>:reraise => false</tt> to ThreadStorm#new.  The exception is stored in ThreadStorm::Execution#exception.
 
-  pool = PoolParty.new :size => 2, :reraise => false, :default_value => "failure"
+  pool = ThreadStorm.new :size => 2, :reraise => false, :default_value => "failure"
   execution = pool.execute{ raise("busted"); "a" }
   pool.join
   execution.value # "failure"
@@ -60,11 +60,11 @@ If an execution causes an exception, it will be reraised when PoolParty#join (or
 
 == Joining vs shutting down
 
-PoolParty#join blocks until all pending executions are done running.  It does not actually kill the pool party's worker threads (incase you want to do more work).  PoolParty#shutdown actually kills the worker threads.
+ThreadStorm#join blocks until all pending executions are done running.  It does not actually kill the thread storm's worker threads (incase you want to do more work).  ThreadStorm#shutdown actually kills the worker threads.
 
-Sometimes it can be a pain to remember to call #shutdown, so as a convenience, you can pass a block to PoolParty#new and #join and #shutdown will be called for you.
+Sometimes it can be a pain to remember to call #shutdown, so as a convenience, you can pass a block to ThreadStorm#new and #join and #shutdown will be called for you.
 
-  party = PoolParty.new do |p|
+  party = ThreadStorm.new do |p|
     p.execute{ "a" }
     p.execute{ "b" }
     p.execute{ "c" }
@@ -74,17 +74,17 @@ Sometimes it can be a pain to remember to call #shutdown, so as a convenience, y
 
 == Configurable timeout method
 
-<tt>Timeout.timeout</tt> is unreliable in MRI 1.8.x.  To address this, you can have PoolParty use an alternative implementation.
+<tt>Timeout.timeout</tt> is unreliable in MRI 1.8.x.  To address this, you can have ThreadStorm use an alternative implementation.
 
  require "system_timer"
- party = PoolParty.new :timeout_method => SystemTimer.method(:timeout) do
+ party = ThreadStorm.new :timeout_method => SystemTimer.method(:timeout) do
    ...
  end
  
 The <tt>:timeout_method</tt> option takes any callable object (i.e. <tt>responds_to?(:call)</tt>) that implements something similar to <tt>Timeout.timeout</tt> (i.e. takes the same arguments and raises <tt>Timeout::Error</tt>).
 
   require "system_timer"
-  party = PoolParty.new :timeout_method => Proc.new{ |seconds, &block| SystemTimer.timeout(seconds, &block) }
+  party = ThreadStorm.new :timeout_method => Proc.new{ |seconds, &block| SystemTimer.timeout(seconds, &block) }
     ...
   end
 
