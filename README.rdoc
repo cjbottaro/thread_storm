@@ -11,22 +11,22 @@ Simple thread pool with a few advanced features.
 
 == Example
 
-  pool = ThreadStorm.new :size => 2
-  pool.execute{ sleep(0.01); "a" }
-  pool.execute{ sleep(0.01); "b" }
-  pool.execute{ sleep(0.01); "c" }
-  pool.join # Should return in about 0.02 seconds... ;)
-  pool.values # ["a", "b", "c"]
+  storm = ThreadStorm.new :size => 2
+  storm.execute{ sleep(0.01); "a" }
+  storm.execute{ sleep(0.01); "b" }
+  storm.execute{ sleep(0.01); "c" }
+  storm.join # Should return in about 0.02 seconds... ;)
+  storm.values # ["a", "b", "c"]
 
 == Execution state
 
 You can query the state of an execution.
 
-  pool = ThreadStorm.new :size => 2
-  execution = pool.execute{ sleep(0.01); "a" }
-  pool.execute{ sleep(0.01); "b" }
-  pool.execute{ sleep(0.01); "c" }
-  pool.join
+  storm = ThreadStorm.new :size => 2
+  execution = storm.execute{ sleep(0.01); "a" }
+  storm.execute{ sleep(0.01); "b" }
+  storm.execute{ sleep(0.01); "c" }
+  storm.join
   execution.started?   # true
   execution.finished?  # true
   execution.timed_out? # false
@@ -37,24 +37,24 @@ You can query the state of an execution.
 
 You can restrict how long executions are allowed to run for.
 
-  pool = ThreadStorm.new :size => 2, :timeout => 0.02, :default_value => "failed"
-  pool.execute{ sleep(0.01); "a" }
-  pool.execute{ sleep(0.03); "b" }
-  pool.execute{ sleep(0.01); "c" }
-  pool.join
-  pool.executions[1].started?   # true
-  pool.executions[1].finished?  # true
-  pool.executions[1].timed_out? # true
-  pool.executions[1].duration   # ~0.02
-  pool.executions[1].value      # "failed"
+  storm = ThreadStorm.new :size => 2, :timeout => 0.02, :default_value => "failed"
+  storm.execute{ sleep(0.01); "a" }
+  storm.execute{ sleep(0.03); "b" }
+  storm.execute{ sleep(0.01); "c" }
+  storm.join
+  storm.executions[1].started?   # true
+  storm.executions[1].finished?  # true
+  storm.executions[1].timed_out? # true
+  storm.executions[1].duration   # ~0.02
+  storm.executions[1].value      # "failed"
 
 == Error handling
 
 If an execution causes an exception, it will be reraised when ThreadStorm#join (or any other method that calls ThreadStorm#join) is called, unless you pass <tt>:reraise => false</tt> to ThreadStorm#new.  The exception is stored in ThreadStorm::Execution#exception.
 
-  pool = ThreadStorm.new :size => 2, :reraise => false, :default_value => "failure"
-  execution = pool.execute{ raise("busted"); "a" }
-  pool.join
+  storm = ThreadStorm.new :size => 2, :reraise => false, :default_value => "failure"
+  execution = storm.execute{ raise("busted"); "a" }
+  storm.join
   execution.value # "failure"
   execution.exception # RuntimeError: busted
 
@@ -64,10 +64,10 @@ ThreadStorm#join blocks until all pending executions are done running.  It does 
 
 Sometimes it can be a pain to remember to call #shutdown, so as a convenience, you can pass a block to ThreadStorm#new and #join and #shutdown will be called for you.
 
-  storm = ThreadStorm.new do |p|
-    p.execute{ "a" }
-    p.execute{ "b" }
-    p.execute{ "c" }
+  storm = ThreadStorm.new do |s|
+    s.execute{ "a" }
+    s.execute{ "b" }
+    s.execute{ "c" }
   end
   # At this point, #join and #shutdown have been called.
   storm.values # ["a", "b", "c"]
