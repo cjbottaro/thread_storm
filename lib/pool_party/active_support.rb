@@ -18,9 +18,9 @@ end
 
 class Object #:nodoc:
   
-  def returning(value)
-    yield(value)
-    value
-  end unless method_defined?(:returning)
+  def tap
+    yield(self)
+    self
+  end unless method_defined?(:tap)
   
 end

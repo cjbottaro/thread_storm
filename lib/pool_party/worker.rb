@@ -1,13 +1,20 @@
 class PoolParty
   class Worker #:nodoc:
+    attr_reader :thread
     
     # Takes the threadsafe queue and options from the thread pool.
     def initialize(queue, options)
       @queue   = queue
       @options = options
       @thread  = Thread.new(self){ |me| me.run }
-      
-      @options[:timeout] = @options[:timeout].to_f unless @options[:timeout].nil?
+    end
+    
+    def timeout
+      @timeout ||= @options[:timeout]
+    end
+    
+    def timeout_method
+      @timeout_method ||= @options[:timeout_method]
     end
     
     # Pop executions and process them until we're signaled to die.
@@ -26,21 +33,20 @@ class PoolParty
     
     # Process the execution, handling timeouts and exceptions.
     def process_execution_with_timeout(execution)
-      execution.start_time = Time.now
+      execution.start!
       begin
-        if @options[:timeout]
-          @options[:timeout_method].call(@options[:timeout]){ process_execution(execution) }
+        if timeout
+          timeout_method.call(timeout){ process_execution(execution) }
         else
           process_execution(execution)
         end
       rescue Timeout::Error => e
-        execution.value = @options[:default_value]
-        execution.timed_out = true
+        execution.timed_out!
       rescue Exception => e
-        execution.value = @options[:default_value]
         execution.exception = e
+      ensure
+        execution.finish!
       end
-      execution.finish_time = Time.now
     end
     
     # Seriously, process the execution.
@@ -56,11 +62,6 @@ class PoolParty
     # True if this worker's thread should die.
     def die?
       !!@die
-    end
-    
-    # So the thread pool can wait for this worker's thread to end.
-    def join
-      @thread.join
     end
     
   end

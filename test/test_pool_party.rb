@@ -8,7 +8,7 @@ class TestPoolParty < Test::Unit::TestCase
     pool.execute{ sleep(0.01); "two" }
     pool.execute{ sleep(0.01); "three" }
     assert_equal %w[one two three], pool.values
-    assert_in_delta 0.03, pool.duration, 0.001
+    assert_all_threads_worked(pool)
   end
   
   def test_partial_concurrency
@@ -17,7 +17,7 @@ class TestPoolParty < Test::Unit::TestCase
     pool.execute{ sleep(0.01); "two" }
     pool.execute{ sleep(0.01); "three" }
     assert_equal %w[one two three], pool.values
-    assert_in_delta 0.02, pool.duration, 0.001
+    assert_all_threads_worked(pool)
   end
   
   def test_full_concurrency
@@ -26,7 +26,7 @@ class TestPoolParty < Test::Unit::TestCase
     pool.execute{ sleep(0.01); "two" }
     pool.execute{ sleep(0.01); "three" }
     assert_equal %w[one two three], pool.values
-    assert_in_delta 0.01, pool.duration, 0.001
+    assert_all_threads_worked(pool)
   end
   
   def test_timeout_no_concurrency
@@ -35,9 +35,8 @@ class TestPoolParty < Test::Unit::TestCase
     pool.execute{ sleep(0.02); "two" }
     pool.execute{ sleep(0.01); "three" }
     assert_equal ["one", nil, "three"], pool.values
-    assert_in_delta 0.035, pool.duration, 0.001
     assert pool.executions[1].timed_out?
-    assert_in_delta 0.015, pool.executions[1].duration, 0.001
+    assert_all_threads_worked(pool)
   end
   
   # Tricky...
@@ -50,9 +49,8 @@ class TestPoolParty < Test::Unit::TestCase
     pool.execute{ sleep(0.02); "two" }
     pool.execute{ sleep(0.01); "three" }
     assert_equal ["one", nil, "three"], pool.values
-    assert_in_delta 0.02, pool.duration, 0.001
     assert pool.executions[1].timed_out?
-    assert_in_delta 0.015, pool.executions[1].duration, 0.001
+    assert_all_threads_worked(pool)
   end
   
   def test_timeout_full_concurrency
@@ -61,9 +59,8 @@ class TestPoolParty < Test::Unit::TestCase
     pool.execute{ sleep(0.02); "two" }
     pool.execute{ sleep(0.01); "three" }
     assert_equal ["one", nil, "three"], pool.values
-    assert_in_delta 0.015, pool.duration, 0.001
     assert pool.executions[1].timed_out?
-    assert_in_delta 0.015, pool.executions[1].duration, 0.001
+    assert_all_threads_worked(pool)
   end
   
   def test_timeout_with_default_value
@@ -72,9 +69,8 @@ class TestPoolParty < Test::Unit::TestCase
     pool.execute{ sleep(0.02); "two" }
     pool.execute{ sleep(0.01); "three" }
     assert_equal ["one", "timed out", "three"], pool.values
-    assert_in_delta 0.035, pool.duration, 0.001
     assert pool.executions[1].timed_out?
-    assert_in_delta 0.015, pool.executions[1].duration, 0.001
+    assert_all_threads_worked(pool)
   end
   
   def test_shutdown
@@ -109,7 +105,7 @@ class TestPoolParty < Test::Unit::TestCase
     end
     assert_equal thread_count, Thread.list.length
     assert_equal %w[one two three], pool.values
-    assert_in_delta 0.03, pool.duration, 0.001
+    assert_all_threads_worked(pool)
   end
   
 end

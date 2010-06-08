@@ -36,10 +36,19 @@ class PoolParty
     @options[:size]
   end
   
+  def default_value
+    @options[:default_value]
+  end
+  
+  def reraise?
+    @options[:reraise]
+  end
+  
   # Create and execution and schedules it to be run by the thread pool.
   # Return value is a PoolParty::Execution.
   def execute(*args, &block)
-    returning(Execution.new(args, &block)) do |execution|
+    Execution.new(args, &block).tap do |execution|
+      execution.value = default_value
       @executions << execution
       @queue << execution
     end
@@ -49,10 +58,9 @@ class PoolParty
   # Reraises any exceptions caused by executions unless <tt>:reraise => false</tt> was passed to PoolParty#new.
   def join
     @executions.each do |execution|
-      Thread.pass while not execution.finished?
-      raise execution.exception if execution.exception and @options[:reraise]
+      execution.join
+      raise execution.exception if execution.exception and reraise?
     end
-    @finish_time = Time.now
   end
   
   # Calls PoolParty#join, then collects the values of each execution.
@@ -61,23 +69,18 @@ class PoolParty
     @executions.collect{ |execution| execution.value }
   end
   
-  # Returns how long the thread pool as been running in seconds.
-  def duration
-    if @finish_time
-      @finish_time - @start_time
-    else
-      Time.now - @start_time
-    end
-  end
-  
-  # Signals the worker threads to terminate and blocks until they do.
+  # Signals the worker threads to terminate immediately (ignoring any pending
+  # executions) and blocks until they do.
   def shutdown
-    Thread.pass while not @queue.empty?
     @workers.each{ |worker| worker.die! }
     @workers.length.times{ @queue << :wakeup }
-    @workers.each{ |worker| worker.join }
-    @finish_time = Time.now
+    @workers.each{ |worker| worker.thread.join }
     true
+  end
+  
+  # Returns an array of threads in the pool.
+  def threads
+    @workers.collect{ |worker| worker.thread }
   end
   
 end

@@ -1,4 +1,7 @@
 0.4.0
+ - Removed timing based tests.
+ - Much more efficient PoolParty#join.
+ - Added Execution#join.
  - Configurable Timeout implementation.
 
 0.3.0
