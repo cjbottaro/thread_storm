@@ -87,6 +87,11 @@ class TestPoolParty < Test::Unit::TestCase
     assert_equal original_thread_count, Thread.list.length
   end
   
+  def test_shutdown_before_pop
+    pool = PoolParty.new :size => 3
+    pool.shutdown
+  end
+  
   def test_args
     pool = PoolParty.new :size => 2
     %w[one two three four five].each do |word|

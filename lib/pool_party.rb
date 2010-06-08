@@ -1,6 +1,7 @@
 require "thread"
 require "timeout"
 require "pool_party/active_support"
+require "pool_party/queue"
 require "pool_party/execution"
 require "pool_party/worker"
 
@@ -50,7 +51,7 @@ class PoolParty
     Execution.new(args, &block).tap do |execution|
       execution.value = default_value
       @executions << execution
-      @queue << execution
+      @queue.push(execution)
     end
   end
   
@@ -73,7 +74,7 @@ class PoolParty
   # executions) and blocks until they do.
   def shutdown
     @workers.each{ |worker| worker.die! }
-    @workers.length.times{ @queue << :wakeup }
+    @queue.die!
     @workers.each{ |worker| worker.thread.join }
     true
   end

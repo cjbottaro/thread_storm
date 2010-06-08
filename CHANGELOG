@@ -1,4 +1,5 @@
 0.4.0
+ - Simplified the shutdown process by using my own thread safe queue.
  - Removed timing based tests.
  - Much more efficient PoolParty#join.
  - Added Execution#join.

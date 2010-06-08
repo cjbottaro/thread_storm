@@ -24,11 +24,7 @@ class PoolParty
     
     # Pop an execution off the queue and process it, or pass off control to a different thread.
     def pop_and_process_execution
-      if (execution = @queue.pop).instance_of?(Execution)
-        process_execution_with_timeout(execution)
-      else
-        Thread.pass
-      end
+      execution = @queue.pop and process_execution_with_timeout(execution)
     end
     
     # Process the execution, handling timeouts and exceptions.
