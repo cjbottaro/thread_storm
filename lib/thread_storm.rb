@@ -21,10 +21,15 @@ class ThreadStorm
                                     :timeout => nil,
                                     :timeout_method => Timeout.method(:timeout),
                                     :default_value => nil,
-                                    :reraise => true
-    @queue = Queue.new # This is threadsafe.
+                                    :reraise => true,
+                                    :execute_blocks => false
+    #@queue = Queue.new # This is threadsafe.
+    @queue = []
     @executions = []
-    @workers = (1..@options[:size]).collect{ Worker.new(@queue, @options) }
+    @lock = Mutex.new
+    @free_cond = ConditionVariable.new
+    @full_cond = ConditionVariable.new
+    @workers = (1..@options[:size]).collect{ Worker.new(@queue, @options, @lock, @free_cond, @full_cond) }
     @start_time = Time.now
     if block_given?
       yield(self)
@@ -45,13 +50,25 @@ class ThreadStorm
     @options[:reraise]
   end
   
+  def execute_blocks?
+    @options[:execute_blocks]
+  end
+  
+  def all_workers_busy?
+    @workers.all?{ |worker| worker.busy? }
+  end
+  
   # Create and execution and schedules it to be run by the thread pool.
   # Return value is a ThreadStorm::Execution.
   def execute(*args, &block)
     Execution.new(args, &block).tap do |execution|
       execution.value = default_value
       @executions << execution
-      @queue.enq(execution)
+      @lock.synchronize do
+        @free_cond.wait(@lock) if execute_blocks? and all_workers_busy?
+        @queue << execution
+        @full_cond.signal
+      end
     end
   end
   
@@ -74,7 +91,8 @@ class ThreadStorm
   # executions) and blocks until they do.
   def shutdown
     @workers.each{ |worker| worker.die! }
-    @queue.die!
+    @free_cond.broadcast
+    @full_cond.broadcast
     @workers.each{ |worker| worker.thread.join }
     true
   end

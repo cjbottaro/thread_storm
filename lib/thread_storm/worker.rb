@@ -3,7 +3,10 @@ class ThreadStorm
     attr_reader :thread
     
     # Takes the threadsafe queue and options from the thread pool.
-    def initialize(queue, options)
+    def initialize(queue, options, lock, free_cond, full_cond)
+      @lock = lock
+      @free_cond = free_cond
+      @full_cond = full_cond
       @queue   = queue
       @options = options
       @thread  = Thread.new(self){ |me| me.run }
@@ -24,7 +27,17 @@ class ThreadStorm
     
     # Pop an execution off the queue and process it, or pass off control to a different thread.
     def pop_and_process_execution
-      execution = @queue.deq and process_execution_with_timeout(execution)
+      execution = @lock.synchronize do
+        if @queue.empty?
+          @busy = false
+          @free_cond.signal
+          @full_cond.wait(@lock)
+        end
+        @busy = true
+        @queue.pop
+      end
+      
+      process_execution_with_timeout(execution) if execution
     end
     
     # Process the execution, handling timeouts and exceptions.
@@ -48,6 +61,10 @@ class ThreadStorm
     # Seriously, process the execution.
     def process_execution(execution)
       execution.value = execution.block.call(*execution.args)
+    end
+    
+    def busy?
+      !!@busy
     end
     
     # So the thread pool can signal this worker's thread to end.
