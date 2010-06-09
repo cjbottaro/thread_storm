@@ -51,7 +51,7 @@ class ThreadStorm
     Execution.new(args, &block).tap do |execution|
       execution.value = default_value
       @executions << execution
-      @queue.push(execution)
+      @queue.enq(execution)
     end
   end
   

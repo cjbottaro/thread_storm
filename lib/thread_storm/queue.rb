@@ -10,28 +10,28 @@ class ThreadStorm
       @queue = []
     end
     
-    # Pushes a value on the queue and wakes up the next thread waiting on #pop.
-    def push(value)
+    # Pushes a value on the queue and wakes up the next thread waiting on #deq.
+    def enq(value)
       @lock.synchronize do 
         @queue.push(value)
-        @cond.signal # Wake up next thread waiting on #pop.
+        @cond.signal # Wake up next thread waiting on #deq.
       end
     end
     
     # Pops a value of the queue.  Blocks if the queue is empty.
-    def pop
+    def deq
       @lock.synchronize do
         @cond.wait(@lock) if @queue.empty? and not die?
         @queue.pop
       end
     end
     
-    # Clears the queue.  Any calls to #pop will immediately return with nil.
+    # Clears the queue.  Any calls to #deq will immediately return with nil.
     def die!
       @lock.synchronize do
         @die = true
         @queue.clear
-        @cond.broadcast # Wake up any threads waiting on #pop.
+        @cond.broadcast # Wake up any threads waiting on #deq.
       end
     end
   

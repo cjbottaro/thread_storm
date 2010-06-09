@@ -24,7 +24,7 @@ class ThreadStorm
     
     # Pop an execution off the queue and process it, or pass off control to a different thread.
     def pop_and_process_execution
-      execution = @queue.pop and process_execution_with_timeout(execution)
+      execution = @queue.deq and process_execution_with_timeout(execution)
     end
     
     # Process the execution, handling timeouts and exceptions.
