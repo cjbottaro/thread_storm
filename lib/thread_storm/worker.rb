@@ -27,11 +27,11 @@ class ThreadStorm
     def pop_and_process_execution
       @queue.synchronize do
         if @queue.empty? and not die?
-          @execution = nil
-          @queue.signal_deq
-          @queue.wait_on_enq
+          @execution = nil   # Mark us as idle (not busy).
+          @queue.signal_deq  # Signal to anyone waiting to enq that there is an idle worker.
+          @queue.wait_on_enq # Become idle.
         end
-        @execution = @queue.deq
+        @execution = @queue.deq unless die?
       end
       process_execution_with_timeout unless die?
     end
