@@ -21,8 +21,14 @@ class ThreadStorm
     # Pops a value of the queue.  Blocks if the queue is empty.
     def deq
       @lock.synchronize do
-        @cond.wait(@lock) if @queue.empty? and not die?
-        @queue.pop
+        if deq_should_block?
+          @cond.wait(@lock)
+        end
+        if die?
+          nil
+        else
+          @queue.pop
+        end
       end
     end
     
@@ -36,7 +42,11 @@ class ThreadStorm
     end
   
   private
-  
+    
+    def deq_should_block?
+      @queue.empty? and not die?
+    end
+    
     def die?
       !!@die
     end
