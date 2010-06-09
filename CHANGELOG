@@ -1,3 +1,6 @@
+0.5.0
+ - Implemented the :execute_blocks option.
+ 
 0.4.0
  - Renamed to thread_storm... ugh.
  - Simplified the shutdown process by using my own thread safe queue.
