@@ -4,12 +4,12 @@ class ThreadStorm
     attr_writer :value, :exception #:nodoc:
     attr_reader :args, :block, :thread #:nodoc:
     
-    def initialize(args, &block) #:nodoc:
+    def initialize(args, default_value, &block) #:nodoc:
       @args = args
+      @value = default_value
       @block = block
       @start_time = nil
       @finish_time = nil
-      @value = nil
       @exception = nil
       @timed_out = false
       @thread = nil

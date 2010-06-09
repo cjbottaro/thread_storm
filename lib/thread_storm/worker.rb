@@ -1,15 +1,13 @@
 class ThreadStorm
   class Worker #:nodoc:
-    attr_reader :thread
+    attr_reader :thread, :execution
     
     # Takes the threadsafe queue and options from the thread pool.
-    def initialize(queue, options, lock, free_cond, full_cond)
-      @lock = lock
-      @free_cond = free_cond
-      @full_cond = full_cond
-      @queue   = queue
-      @options = options
-      @thread  = Thread.new(self){ |me| me.run }
+    def initialize(queue, options)
+      @queue     = queue
+      @options   = options
+      @execution = nil # Current execution we're working on.
+      @thread    = Thread.new(self){ |me| me.run }
     end
     
     def timeout
@@ -27,27 +25,25 @@ class ThreadStorm
     
     # Pop an execution off the queue and process it, or pass off control to a different thread.
     def pop_and_process_execution
-      execution = @lock.synchronize do
-        if @queue.empty?
-          @busy = false
-          @free_cond.signal
-          @full_cond.wait(@lock)
+      @queue.synchronize do
+        if @queue.empty? and not die?
+          @execution = nil
+          @queue.signal_deq
+          @queue.wait_on_enq
         end
-        @busy = true
-        @queue.pop
+        @execution = @queue.deq
       end
-      
-      process_execution_with_timeout(execution) if execution
+      process_execution_with_timeout unless die?
     end
     
     # Process the execution, handling timeouts and exceptions.
-    def process_execution_with_timeout(execution)
+    def process_execution_with_timeout
       execution.start!
       begin
         if timeout
-          timeout_method.call(timeout){ process_execution(execution) }
+          timeout_method.call(timeout){ process_execution }
         else
-          process_execution(execution)
+          process_execution
         end
       rescue Timeout::Error => e
         execution.timed_out!
@@ -59,12 +55,12 @@ class ThreadStorm
     end
     
     # Seriously, process the execution.
-    def process_execution(execution)
+    def process_execution
       execution.value = execution.block.call(*execution.args)
     end
     
     def busy?
-      !!@busy
+      !!@execution
     end
     
     # So the thread pool can signal this worker's thread to end.

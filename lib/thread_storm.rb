@@ -7,7 +7,7 @@ require "thread_storm/worker"
 
 class ThreadStorm
   
-  # Array of executions in order as defined by calls to ThreadStorm#execute.
+  # Array of executions in order as they are defined by calls to ThreadStorm#execute.
   attr_reader :executions
   
   # Valid options are
@@ -16,6 +16,7 @@ class ThreadStorm
   #   :timeout_method => An object that implements something like Timeout.timeout via #call.  Default is Timeout.method(:timeout).
   #   :default_value => Value of an execution if it times out or errors.  Default is nil.
   #   :reraise => True if you want exceptions reraised when ThreadStorm#join is called.  Default is true.
+  #   :execute_blocks => True if you want #execute to block until there is an available thread.  Default is false.
   def initialize(options = {})
     @options = options.option_merge :size => 2,
                                     :timeout => nil,
@@ -23,14 +24,9 @@ class ThreadStorm
                                     :default_value => nil,
                                     :reraise => true,
                                     :execute_blocks => false
-    #@queue = Queue.new # This is threadsafe.
-    @queue = []
+    @queue = Queue.new # ThreadStorm::Queue
     @executions = []
-    @lock = Mutex.new
-    @free_cond = ConditionVariable.new
-    @full_cond = ConditionVariable.new
-    @workers = (1..@options[:size]).collect{ Worker.new(@queue, @options, @lock, @free_cond, @full_cond) }
-    @start_time = Time.now
+    @workers = (1..@options[:size]).collect{ Worker.new(@queue, @options) }
     if block_given?
       yield(self)
       join
@@ -38,36 +34,17 @@ class ThreadStorm
     end
   end
   
-  def size
-    @options[:size]
-  end
-  
-  def default_value
-    @options[:default_value]
-  end
-  
-  def reraise?
-    @options[:reraise]
-  end
-  
-  def execute_blocks?
-    @options[:execute_blocks]
-  end
-  
-  def all_workers_busy?
-    @workers.all?{ |worker| worker.busy? }
-  end
-  
-  # Create and execution and schedules it to be run by the thread pool.
+  # Creates an execution and schedules it to be run by the thread pool.
   # Return value is a ThreadStorm::Execution.
   def execute(*args, &block)
-    Execution.new(args, &block).tap do |execution|
-      execution.value = default_value
+    Execution.new(args, default_value, &block).tap do |execution|
       @executions << execution
-      @lock.synchronize do
-        @free_cond.wait(@lock) if execute_blocks? and all_workers_busy?
-        @queue << execution
-        @full_cond.signal
+      @queue.synchronize do
+        if execute_blocks? and all_workers_busy?
+          @queue.wait_on_deq
+        end
+        @queue.enq(execution)
+        @queue.signal_enq
       end
     end
   end
@@ -83,23 +60,44 @@ class ThreadStorm
   
   # Calls ThreadStorm#join, then collects the values of each execution.
   def values
-    join
-    @executions.collect{ |execution| execution.value }
+    join and @executions.collect{ |execution| execution.value }
   end
   
   # Signals the worker threads to terminate immediately (ignoring any pending
   # executions) and blocks until they do.
   def shutdown
     @workers.each{ |worker| worker.die! }
-    @free_cond.broadcast
-    @full_cond.broadcast
+    @queue.broadcast_enq # Wake up any threads waiting on deq.
+    @queue.broadcast_deq # This isn't necessary if we assume that #shutdown is called synchronously on the same thread as #execute.
     @workers.each{ |worker| worker.thread.join }
     true
   end
   
-  # Returns an array of threads in the pool.
+  # Returns an array of Ruby threads in the pool.
   def threads
     @workers.collect{ |worker| worker.thread }
+  end
+  
+private
+  
+  def size #:nodoc:
+    @options[:size]
+  end
+  
+  def default_value #:nodoc:
+    @options[:default_value]
+  end
+  
+  def reraise? #:nodoc:
+    @options[:reraise]
+  end
+  
+  def execute_blocks? #:nodoc:
+    @options[:execute_blocks]
+  end
+  
+  def all_workers_busy? #:nodoc:
+    @workers.all?{ |worker| worker.busy? }
   end
   
 end

@@ -4,51 +4,50 @@ class ThreadStorm
   class Queue #:nodoc:
     
     def initialize
-      @lock  = Mutex.new
-      @cond  = ConditionVariable.new
-      @die   = false
-      @queue = []
+      @lock     = Mutex.new
+      @deq_cond = ConditionVariable.new
+      @enq_cond = ConditionVariable.new
+      @queue    = []
     end
     
-    # Pushes a value on the queue and wakes up the next thread waiting on #deq.
     def enq(value)
-      @lock.synchronize do 
-        @queue.push(value)
-        @cond.signal # Wake up next thread waiting on #deq.
-      end
+      @queue.push(value)
     end
     
-    # Pops a value of the queue.  Blocks if the queue is empty.
     def deq
-      @lock.synchronize do
-        if deq_should_block?
-          @cond.wait(@lock)
-        end
-        if die?
-          nil
-        else
-          @queue.pop
-        end
-      end
+      @queue.pop
     end
     
-    # Clears the queue.  Any calls to #deq will immediately return with nil.
-    def die!
-      @lock.synchronize do
-        @die = true
-        @queue.clear
-        @cond.broadcast # Wake up any threads waiting on #deq.
-      end
-    end
-  
-  private
-    
-    def deq_should_block?
-      @queue.empty? and not die?
+    def empty?
+      @queue.empty?
     end
     
-    def die?
-      !!@die
+    def synchronize(&block)
+      @lock.synchronize{ block.call(self) }
+    end
+    
+    def wait_on_deq
+      @deq_cond.wait(@lock)
+    end
+    
+    def wait_on_enq
+      @enq_cond.wait(@lock)
+    end
+    
+    def signal_deq
+      @deq_cond.signal
+    end
+    
+    def signal_enq
+      @enq_cond.signal
+    end
+    
+    def broadcast_deq
+      @deq_cond.broadcast
+    end
+    
+    def broadcast_enq
+      @enq_cond.broadcast
     end
     
   end
