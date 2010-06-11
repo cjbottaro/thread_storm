@@ -78,6 +78,26 @@ class ThreadStorm
     @workers.collect{ |worker| worker.thread }
   end
   
+  # Removes any finished executions and returns them.  Because of the nature of threading,
+  # the following code could happen:
+  #   storm.clear_finished
+  #   storm.executions.any?{ |e| e.finished? }
+  # I.e. some executions could have finished between the call to #clear_finished and the
+  # following line.
+  def clear_finished
+    finished = []
+    running = []
+    @executions.each do |execution|
+      if execution.finished?
+        finished << execution
+      else
+        running << execution
+      end
+    end
+    @executions = running
+    finished
+  end
+  
 private
   
   def size #:nodoc:

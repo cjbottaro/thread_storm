@@ -129,4 +129,15 @@ class TestThreadStorm < Test::Unit::TestCase
     assert_equal false, t2.status
   end
   
+  def test_clear_finished
+    storm = ThreadStorm.new :size => 3
+    storm.execute{ sleep }
+    storm.execute{ sleep(0.1) }
+    storm.execute{ sleep(0.1) }
+    sleep(0.2) # Ugh another test based on sleeping.
+    finished = storm.clear_finished
+    assert_equal 2, finished.length
+    assert_equal 1, storm.executions.length
+  end
+  
 end
