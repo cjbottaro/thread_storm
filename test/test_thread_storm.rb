@@ -129,15 +129,34 @@ class TestThreadStorm < Test::Unit::TestCase
     assert_equal false, t2.status
   end
   
-  def test_clear_finished
+  def test_clear_executions
     storm = ThreadStorm.new :size => 3
     storm.execute{ sleep }
     storm.execute{ sleep(0.1) }
     storm.execute{ sleep(0.1) }
     sleep(0.2) # Ugh another test based on sleeping.
-    finished = storm.clear_finished
+    finished = storm.clear_executions(:finished?)
     assert_equal 2, finished.length
     assert_equal 1, storm.executions.length
+  end
+  
+  def test_execution_blocks_again
+    storm = ThreadStorm.new :size => 10, :execute_blocks => true
+    30.times{ storm.execute{ sleep(rand) } }
+    storm.join
+    storm.shutdown
+  end
+  
+  def test_for_deadlocks
+    ThreadStorm.new :size => 10, :execute_blocks => true do |storm|
+      50.times do
+        storm.execute do
+          ThreadStorm.new :size => 10, :timeout => 0.5 do |storm2|
+            50.times{ storm2.execute{ sleep(rand) } }
+          end
+        end
+      end
+    end
   end
   
 end

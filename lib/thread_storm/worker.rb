@@ -3,8 +3,9 @@ class ThreadStorm
     attr_reader :thread, :execution
     
     # Takes the threadsafe queue and options from the thread pool.
-    def initialize(queue, options)
+    def initialize(queue, semaphore, options)
       @queue     = queue
+      @semaphore = semaphore
       @options   = options
       @execution = nil # Current execution we're working on.
       @thread    = Thread.new(self){ |me| me.run }
@@ -25,15 +26,9 @@ class ThreadStorm
     
     # Pop an execution off the queue and process it, or pass off control to a different thread.
     def pop_and_process_execution
-      @queue.synchronize do
-        if @queue.empty? and not die?
-          @execution = nil   # Mark us as idle (not busy).
-          @queue.signal_deq  # Signal to anyone waiting to enq that there is an idle worker.
-          @queue.wait_on_enq # Become idle.
-        end
-        @execution = @queue.deq unless die?
-      end
-      process_execution_with_timeout unless die?
+      @semaphore.decr
+      @execution = @queue.deq
+      process_execution_with_timeout if @execution and not die?
     end
     
     # Process the execution, handling timeouts and exceptions.

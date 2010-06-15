@@ -1,3 +1,5 @@
+require "monitor"
+
 class ThreadStorm
   # Encapsulates a unit of work to be sent to the thread pool.
   class Execution
@@ -13,8 +15,8 @@ class ThreadStorm
       @exception = nil
       @timed_out = false
       @thread = nil
-      @mutex = Mutex.new
-      @join = ConditionVariable.new
+      @lock = Monitor.new
+      @cond = @lock.new_cond
     end
     
     def start! #:nodoc:
@@ -33,9 +35,9 @@ class ThreadStorm
     end
     
     def finish! #:nodoc:
-      @mutex.synchronize do
+      @lock.synchronize do
         @finish_time = Time.now
-        @join.signal
+        @cond.signal
       end
     end
     
@@ -70,8 +72,8 @@ class ThreadStorm
     
     # Block until this execution has finished running. 
     def join
-      @mutex.synchronize do
-        @join.wait(@mutex) unless finished?
+      @lock.synchronize do
+        @cond.wait_until{ finished? }
       end
     end
     

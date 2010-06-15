@@ -1,5 +1,6 @@
 0.5.0
- - Implemented ThreadStorm#clear_finished.
+ - Refactored to use Monitor.
+ - Implemented ThreadStorm#clear_executions.
  - Implemented the :execute_blocks option.
  
 0.4.0

@@ -1,6 +1,7 @@
 require "thread"
 require "timeout"
 require "thread_storm/active_support"
+require "thread_storm/semaphore"
 require "thread_storm/queue"
 require "thread_storm/execution"
 require "thread_storm/worker"
@@ -24,9 +25,10 @@ class ThreadStorm
                                     :default_value => nil,
                                     :reraise => true,
                                     :execute_blocks => false
-    @queue = Queue.new # ThreadStorm::Queue
+    @semaphore = Semaphore.new(size)
+    @queue = Queue.new(size)
     @executions = []
-    @workers = (1..@options[:size]).collect{ Worker.new(@queue, @options) }
+    @workers = (1..@options[:size]).collect{ Worker.new(@queue, @semaphore, @options) }
     if block_given?
       yield(self)
       join
@@ -38,14 +40,9 @@ class ThreadStorm
   # Return value is a ThreadStorm::Execution.
   def execute(*args, &block)
     Execution.new(args, default_value, &block).tap do |execution|
+      @semaphore.incr if execute_blocks?
+      @queue.enq(execution)
       @executions << execution
-      @queue.synchronize do
-        if execute_blocks? and all_workers_busy?
-          @queue.wait_on_deq
-        end
-        @queue.enq(execution)
-        @queue.signal_enq
-      end
     end
   end
   
@@ -67,8 +64,7 @@ class ThreadStorm
   # executions) and blocks until they do.
   def shutdown
     @workers.each{ |worker| worker.die! }
-    @queue.broadcast_enq # Wake up any threads waiting on deq.
-    @queue.broadcast_deq # This isn't necessary if we assume that #shutdown is called synchronously on the same thread as #execute.
+    @queue.shutdown
     @workers.each{ |worker| worker.thread.join }
     true
   end
@@ -78,24 +74,25 @@ class ThreadStorm
     @workers.collect{ |worker| worker.thread }
   end
   
-  # Removes any finished executions and returns them.  Because of the nature of threading,
-  # the following code could happen:
-  #   storm.clear_finished
+  # Removes executions stored at ThreadStorm#executions.  You can selectively remove
+  # them by passing in a block or a symbol.  The following two lines are equivalent.
+  #   storm.clear_executions(:finished?)
+  #   storm.clear_executions{ |e| e.finished? }
+  # Because of the nature of threading, the following code could happen:
+  #   storm.clear_executions(:finished?)
   #   storm.executions.any?{ |e| e.finished? }
-  # I.e. some executions could have finished between the call to #clear_finished and the
-  # following line.
-  def clear_finished
-    finished = []
-    running = []
-    @executions.each do |execution|
-      if execution.finished?
-        finished << execution
+  # Some executions could have finished between the two calls.
+  def clear_executions(method_name = nil, &block)
+    cleared, kept = [], []
+    @executions = @executions.reject do |execution|
+      if block_given?
+        condition = block.call(execution)
       else
-        running << execution
+        condition = execution.send(method_name)
       end
+      (condition ? cleared : kept) << execution
     end
-    @executions = running
-    finished
+    cleared.tap{ @executions = kept }
   end
   
 private
