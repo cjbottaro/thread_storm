@@ -142,17 +142,17 @@ class TestThreadStorm < Test::Unit::TestCase
   
   def test_execution_blocks_again
     storm = ThreadStorm.new :size => 10, :execute_blocks => true
-    30.times{ storm.execute{ sleep(rand) } }
+    20.times{ storm.execute{ sleep(rand) } }
     storm.join
     storm.shutdown
   end
   
   def test_for_deadlocks
     ThreadStorm.new :size => 10, :execute_blocks => true do |storm|
-      50.times do
+      20.times do
         storm.execute do
           ThreadStorm.new :size => 10, :timeout => 0.5 do |storm2|
-            50.times{ storm2.execute{ sleep(rand) } }
+            20.times{ storm2.execute{ sleep(rand) } }
           end
         end
       end

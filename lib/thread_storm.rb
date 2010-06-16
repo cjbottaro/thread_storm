@@ -1,8 +1,7 @@
 require "thread"
 require "timeout"
 require "thread_storm/active_support"
-require "thread_storm/semaphore"
-require "thread_storm/queue"
+require "thread_storm/sentinel"
 require "thread_storm/execution"
 require "thread_storm/worker"
 
@@ -25,10 +24,10 @@ class ThreadStorm
                                     :default_value => nil,
                                     :reraise => true,
                                     :execute_blocks => false
-    @semaphore = Semaphore.new(size)
-    @queue = Queue.new(size)
+    @sentinel = Sentinel.new
+    @queue = []
     @executions = []
-    @workers = (1..@options[:size]).collect{ Worker.new(@queue, @semaphore, @options) }
+    @workers = (1..@options[:size]).collect{ Worker.new(@queue, @sentinel, @options) }
     if block_given?
       yield(self)
       join
@@ -36,13 +35,20 @@ class ThreadStorm
     end
   end
   
+  def size #:nodoc:
+    @options[:size]
+  end
+  
   # Creates an execution and schedules it to be run by the thread pool.
   # Return value is a ThreadStorm::Execution.
   def execute(*args, &block)
     Execution.new(args, default_value, &block).tap do |execution|
-      @semaphore.incr if execute_blocks?
-      @queue.enq(execution)
-      @executions << execution
+      @sentinel.synchronize do |e_cond, p_cond|
+        e_cond.wait_while{ all_workers_busy? } if execute_blocks?
+        @queue << execution
+        @executions << execution
+        p_cond.signal
+      end
     end
   end
   
@@ -63,10 +69,17 @@ class ThreadStorm
   # Signals the worker threads to terminate immediately (ignoring any pending
   # executions) and blocks until they do.
   def shutdown
-    @workers.each{ |worker| worker.die! }
-    @queue.shutdown
+    @sentinel.synchronize do |e_cond, p_cond|
+      @queue.replace([:die] * size)
+      p_cond.broadcast
+    end
     @workers.each{ |worker| worker.thread.join }
     true
+  end
+  
+  # Returns workers that are currently running executions.
+  def busy_workers
+    @workers.select{ |worker| worker.busy? }
   end
   
   # Returns an array of Ruby threads in the pool.
@@ -84,7 +97,7 @@ class ThreadStorm
   # Some executions could have finished between the two calls.
   def clear_executions(method_name = nil, &block)
     cleared, kept = [], []
-    @executions = @executions.reject do |execution|
+    @executions.each do |execution|
       if block_given?
         condition = block.call(execution)
       else
@@ -92,14 +105,11 @@ class ThreadStorm
       end
       (condition ? cleared : kept) << execution
     end
-    cleared.tap{ @executions = kept }
+    @executions = kept
+    cleared
   end
   
 private
-  
-  def size #:nodoc:
-    @options[:size]
-  end
   
   def default_value #:nodoc:
     @options[:default_value]
