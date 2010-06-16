@@ -1,5 +1,22 @@
 # Things I miss from active_support.
 
+class Array #:nodoc:
+  
+  def separate
+    selected = []
+    rejected = []
+    each do |item|
+      if yield(item)
+        selected << item
+      else
+        rejected << item
+      end
+    end
+    [selected, rejected]
+  end unless method_defined?(:separate)
+  
+end
+
 class Hash #:nodoc:
   
   def symbolize_keys

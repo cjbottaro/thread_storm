@@ -96,16 +96,13 @@ class ThreadStorm
   #   storm.executions.any?{ |e| e.finished? }
   # Some executions could have finished between the two calls.
   def clear_executions(method_name = nil, &block)
-    cleared, kept = [], []
-    @executions.each do |execution|
+    cleared, @executions = @executions.separate do |execution|
       if block_given?
-        condition = block.call(execution)
+        yield(execution)
       else
-        condition = execution.send(method_name)
+        execution.send(method_name)
       end
-      (condition ? cleared : kept) << execution
     end
-    @executions = kept
     cleared
   end
   
