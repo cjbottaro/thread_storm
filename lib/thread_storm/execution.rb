@@ -56,8 +56,10 @@ class ThreadStorm
     def duration
       if finished?
         finish_time - start_time
-      else
+      elsif started?
         Time.now - start_time
+      else
+        -1
       end
     end
     

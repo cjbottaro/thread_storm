@@ -1,3 +1,6 @@
+0.5.1
+ - Fixed crash when calling Execution#duration before it has started.
+
 0.5.0
  - Refactored to use Monitor.
  - Implemented ThreadStorm#clear_executions.
