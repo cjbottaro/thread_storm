@@ -99,6 +99,8 @@ class ThreadStorm
     cleared, @executions = @executions.separate do |execution|
       if block_given?
         yield(execution)
+      elsif method_name.nil?
+        true
       else
         execution.send(method_name)
       end

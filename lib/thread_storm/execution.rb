@@ -85,7 +85,9 @@ class ThreadStorm
     end
     
     # The value returned by the execution's code block.
+    # This implicitly calls join.
     def value
+      join
       @value
     end
     
