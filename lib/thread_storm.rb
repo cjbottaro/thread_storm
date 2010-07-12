@@ -45,8 +45,9 @@ class ThreadStorm
     Execution.new(args, default_value, &block).tap do |execution|
       @sentinel.synchronize do |e_cond, p_cond|
         e_cond.wait_while{ all_workers_busy? } if execute_blocks?
-        @queue << execution
         @executions << execution
+        @queue << execution
+        execution.queued!
         p_cond.signal
       end
     end
@@ -57,7 +58,7 @@ class ThreadStorm
   def join
     @executions.each do |execution|
       execution.join
-      raise execution.exception if execution.exception and reraise?
+      raise execution.exception if execution.exception? and reraise?
     end
   end
   

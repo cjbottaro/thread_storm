@@ -1,3 +1,6 @@
+0.6.0
+ - Changed Execution#duration to return nil if the execution is not in the :started or :finished state.
+
 0.5.1
  - Fixed crash when calling Execution#duration before it has started.
  - ThreadStorm#clear_executions can now take no arguments at all.

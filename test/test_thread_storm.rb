@@ -73,6 +73,16 @@ class TestThreadStorm < Test::Unit::TestCase
     assert_all_threads_worked(storm)
   end
   
+  def test_exception_handling
+    storm = ThreadStorm.new :size => 1, :reraise => false do |s|
+      s.execute{ raise ArgumentError, "test" }
+    end
+    execution = storm.executions.first
+    assert execution.exception?
+    assert execution.exception.class == ArgumentError
+    assert execution.exception.message == "test"
+  end
+  
   def test_shutdown
     original_thread_count = Thread.list.length
     
@@ -156,6 +166,17 @@ class TestThreadStorm < Test::Unit::TestCase
           end
         end
       end
+    end
+  end
+  
+  def test_state_times
+    storm = ThreadStorm.new :size => 1, :execute_blocks => true do |s|
+      s.execute{ sleep(0.2) }
+      s.execute{ sleep(0.2) }
+      s.execute{ sleep(0.2) }
+    end
+    storm.executions.each do |e|
+      assert e.queue_time < e.start_time and e.start_time < e.finish_time
     end
   end
   

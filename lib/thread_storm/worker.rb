@@ -43,25 +43,20 @@ class ThreadStorm
     
     # Process the execution, handling timeouts and exceptions.
     def process_execution_with_timeout
-      execution.start!
+      execution.started!
       begin
         if timeout
-          timeout_method.call(timeout){ process_execution }
+          timeout_method.call(timeout){ execution.execute! }
         else
-          process_execution
+          execution.execute!
         end
       rescue Timeout::Error => e
         execution.timed_out!
       rescue Exception => e
-        execution.exception = e
+        execution.exception!(e)
       ensure
-        execution.finish!
+        execution.finished!
       end
-    end
-    
-    # Seriously, process the execution.
-    def process_execution
-      execution.value = execution.block.call(*execution.args)
     end
     
     def busy?
