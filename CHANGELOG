@@ -1,4 +1,7 @@
 0.6.0
+ - ThreadStorm#execution can now take an execution instance.
+ - ThreadStorm::Execution.new to create an execution in the :new state.
+ - Execution states (:new, :queued, :started, :finished)
  - Changed Execution#duration to return nil if the execution is not in the :started or :finished state.
 
 0.5.1

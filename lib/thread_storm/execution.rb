@@ -16,6 +16,8 @@ class ThreadStorm
       :finished => STATE_FINISHED
     }
     
+    STATE_SYMBOLS_INVERTED = STATE_SYMBOLS.invert
+    
     # The arguments passed into ThreadStorm#execute.
     attr_reader :args
     
@@ -30,11 +32,11 @@ class ThreadStorm
     
     attr_reader :block, :thread #:nodoc:
     
-    def initialize(args, default_value, &block) #:nodoc:
+    def initialize(*args, &block) #:nodoc:
       @state = nil
       @state_times = {}
       @args = args
-      @value = default_value
+      @value = nil
       @block = block
       @exception = nil
       @timed_out = false
@@ -46,7 +48,7 @@ class ThreadStorm
     
     # The state of an execution as a symbol.  See Execution::STATE_SYMBOLS.
     def state
-      STATE_SYMBOLS[@state] or raise RuntimeError, "invalid state: #{state.inspect}"
+      STATE_SYMBOLS_INVERTED[@state] or raise RuntimeError, "invalid state: #{@state.inspect}"
     end
     
     # True if the execution has entered the :new state.
@@ -113,7 +115,7 @@ class ThreadStorm
     # or if it hasn't finished, how long it has been running for.
     # This is an alias for #state_duration(:started).
     def duration
-      state_duration[:started]
+      state_duration(:started)
     end
     
     # True if this execution raised an exception.

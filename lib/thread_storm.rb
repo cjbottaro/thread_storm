@@ -39,18 +39,35 @@ class ThreadStorm
     @options[:size]
   end
   
-  # Creates an execution and schedules it to be run by the thread pool.
-  # Return value is a ThreadStorm::Execution.
+  # call-seq:
+  #   storm.execute(*args){ |*args| block } -> execution
+  #   storm.execute(execution) -> execution
+  #
+  # Schedules an execution to be run (i.e. moves it to the :queued state).
+  # When given a block, it is the same as
+  #   execution = ThreadStorm::Execution.new(*args){ |*args| block }
+  #   storm.execute(execution)
   def execute(*args, &block)
-    Execution.new(args, default_value, &block).tap do |execution|
-      @sentinel.synchronize do |e_cond, p_cond|
-        e_cond.wait_while{ all_workers_busy? } if execute_blocks?
-        @executions << execution
-        @queue << execution
-        execution.queued!
-        p_cond.signal
-      end
+    if block_given?
+      execution = Execution.new(*args, &block)
+    elsif args.length == 1 and args.first.instance_of?(Execution)
+      execution = args.first
+    else
+      raise ArgumentError, "execution or arguments and block expected"
     end
+    
+    # Oh, gross.
+    execution.instance_variable_set("@value", default_value)
+    
+    @sentinel.synchronize do |e_cond, p_cond|
+      e_cond.wait_while{ all_workers_busy? } if execute_blocks?
+      @executions << execution
+      @queue << execution
+      execution.queued!
+      p_cond.signal
+    end
+    
+    execution
   end
   
   # Block until all pending executions are finished running.

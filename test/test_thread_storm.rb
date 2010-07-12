@@ -169,15 +169,60 @@ class TestThreadStorm < Test::Unit::TestCase
     end
   end
   
-  def test_state_times
-    storm = ThreadStorm.new :size => 1, :execute_blocks => true do |s|
-      s.execute{ sleep(0.2) }
-      s.execute{ sleep(0.2) }
-      s.execute{ sleep(0.2) }
+  def test_duration
+    ThreadStorm.new do |s|
+      e = s.execute{ sleep(0.2) }
+      e.join
+      assert e.duration >= 0.2
     end
-    storm.executions.each do |e|
-      assert e.queue_time < e.start_time and e.start_time < e.finish_time
+  end
+  
+  def test_states
+    lock = Monitor.new
+    cond = lock.new_cond
+    var  = 1
+    
+    storm = ThreadStorm.new :size => 1
+    storm.execute do
+      lock.synchronize do
+        cond.wait_until{ var == 2 }
+      end
     end
+    
+    execution = ThreadStorm::Execution.new do
+      lock.synchronize do
+        var = 3
+        cond.signal
+        cond.wait_until{ var == 4 }
+        var = 5
+        cond.signal
+      end
+    end
+    assert_equal :new, execution.state
+    
+    storm.execute(execution)
+    assert_equal :queued, execution.state
+    
+    lock.synchronize{ var = 2; cond.signal }
+    lock.synchronize{ cond.wait_until{ var == 3 } }
+    assert_equal :started, execution.state
+    
+    lock.synchronize{ var = 4; cond.signal }
+    lock.synchronize{ cond.wait_until{ var == 5 } }
+    assert_equal :finished, execution.state
+    
+    assert_equal false, execution.exception?
+    
+    assert execution.new_time < execution.queue_time
+    assert execution.queue_time < execution.start_time
+    assert execution.start_time < execution.finish_time
+    
+    assert execution.state_duration(:new) > 0
+    assert execution.state_duration(:queued) > 0
+    assert execution.state_duration(:started) > 0
+    assert execution.state_duration(:finished) > 0
+    
+    storm.shutdown
   end
   
 end
