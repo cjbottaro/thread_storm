@@ -1,7 +1,7 @@
 require "monitor"
 
 class ThreadStorm
-  class Sentinel
+  class Sentinel #:nodoc:
     attr_reader :e_cond, :p_cond
     
     def initialize

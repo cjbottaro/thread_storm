@@ -2,6 +2,16 @@ require "monitor"
 
 class ThreadStorm
   # Encapsulates a unit of work to be sent to the thread pool.
+  #
+  # Executions are in one of four states:  :new, :queued, :started or :finished.
+  #
+  # :new is the initial state when an execution has been created, but hasn't been scheduled to run.
+  #
+  # :queued is the state when an execution is scheduled and is waiting for an available thread.
+  #
+  # :started is the state when an execution is running its code block on an available thread.
+  #
+  # :finished is the state when an execution has completed running its code block.
   class Execution
     
     STATE_NEW      = 0
@@ -18,7 +28,7 @@ class ThreadStorm
     
     STATE_SYMBOLS_INVERTED = STATE_SYMBOLS.invert
     
-    # The arguments passed into ThreadStorm#execute.
+    # The arguments passed into new or ThreadStorm#execute.
     attr_reader :args
     
     # The value of an execution's block.
@@ -32,7 +42,10 @@ class ThreadStorm
     
     attr_reader :block, :thread #:nodoc:
     
-    def initialize(*args, &block) #:nodoc:
+    # Create an execution.  The execution will be in the :new state.  Call
+    # ThreadStorm#execute to schedule the execution to be run and transition
+    # it into the :queued state.
+    def initialize(*args, &block)
       @state = nil
       @state_times = {}
       @args = args
@@ -46,29 +59,31 @@ class ThreadStorm
       new!
     end
     
-    # The state of an execution as a symbol.  See Execution::STATE_SYMBOLS.
+    # The state of an execution as a symbol (See STATE_SYMBOLS).
     def state
       STATE_SYMBOLS_INVERTED[@state] or raise RuntimeError, "invalid state: #{@state.inspect}"
     end
     
-    # True if the execution has entered the :new state.
+    # True if an execution is in the :new state.
     def new?
-      @state >= STATE_NEW
+      @state == STATE_NEW
     end
     
-    # True if the execution has entered the :queued state.
+    # True if an execution is in the :queued state.
     def queued?
-      @state >= STATE_QUEUED
+      @state == STATE_QUEUED
     end
     
-    # True if the execution has entered the :started state.
+    # True if an execution is in the :started state.
     def started?
-      @state >= STATE_STARTED
+      @state == STATE_STARTED
     end
     
-    # True if the execution has entered the :finished state.
+    alias_method :running?, :started?
+    
+    # True if an execution is in the :finished state.
     def finished?
-      @state >= STATE_FINISHED
+      @state == STATE_FINISHED
     end
     
     # When this execution entered the :new state.
@@ -92,14 +107,14 @@ class ThreadStorm
     end
     
     # When an execution entered a given state.
-    # _state_ is a symbol (See Execution::STATE_SYMBOLS).
+    # _state_ is a symbol (See STATE_SYMBOLS).
     def state_time(state)
       state = STATE_SYMBOLS[state]
       @state_times[state]
     end
     
     # How long an execution has been in a given state.
-    # _state_ is a symbol (See Execution::STATE_SYMBOLS).
+    # _state_ is a symbol (See STATE_SYMBOLS).
     def state_duration(state)
       state = STATE_SYMBOLS[state]
       if state == @state
@@ -111,8 +126,10 @@ class ThreadStorm
       end
     end
     
-    # How long this this execution ran for (i.e. finish_time - start_time)
-    # or if it hasn't finished, how long it has been running for.
+    # If the execution is in the :finished state, then returns finish_time - start_time (i.e. how long it ran for).
+    # If the execution is in the :started state, then returns Time.now - start_time (i.e. how long it has been running for).
+    # Otherwise returns nil.
+    #
     # This is an alias for #state_duration(:started).
     def duration
       state_duration(:started)
@@ -171,7 +188,7 @@ class ThreadStorm
       @timed_out = true
     end
     
-    def exception!(e) #:nodoc
+    def exception!(e) #:nodoc:
       @exception = e
     end
     

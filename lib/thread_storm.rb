@@ -5,11 +5,16 @@ require "thread_storm/sentinel"
 require "thread_storm/execution"
 require "thread_storm/worker"
 
+# Simple but powerful thread pool implementation.
 class ThreadStorm
   
   # Array of executions in order as they are defined by calls to ThreadStorm#execute.
   attr_reader :executions
   
+  # call-seq:
+  #   new(options = {}) -> thread_storm
+  #   new(options = {}){ |self| ... } -> thread_storm
+  #
   # Valid options are
   #   :size => How many threads to spawn.  Default is 2.
   #   :timeout => Max time an execution is allowed to run before terminating it.  Default is nil (no timeout).
@@ -17,6 +22,15 @@ class ThreadStorm
   #   :default_value => Value of an execution if it times out or errors.  Default is nil.
   #   :reraise => True if you want exceptions reraised when ThreadStorm#join is called.  Default is true.
   #   :execute_blocks => True if you want #execute to block until there is an available thread.  Default is false.
+  # When given a block, #join and #shutdown are called for you.  In other words...
+  #   ThreadStorm.new do |storm|
+  #     storm.execute{ sleep(1) }
+  #   end
+  # ...is the same as...
+  #   storm = ThreadStorm.new
+  #   storm.execute{ sleep(1) }
+  #   storm.join
+  #   storm.shutdown
   def initialize(options = {})
     @options = options.option_merge :size => 2,
                                     :timeout => nil,
@@ -35,17 +49,18 @@ class ThreadStorm
     end
   end
   
-  def size #:nodoc:
+  # Returns the size of the thread pool (i.e. the :size option in new).
+  def size
     @options[:size]
   end
   
   # call-seq:
-  #   storm.execute(*args){ |*args| block } -> execution
+  #   storm.execute(*args){ |*args| ... } -> execution
   #   storm.execute(execution) -> execution
   #
   # Schedules an execution to be run (i.e. moves it to the :queued state).
   # When given a block, it is the same as
-  #   execution = ThreadStorm::Execution.new(*args){ |*args| block }
+  #   execution = ThreadStorm::Execution.new(*args){ |*args| ... }
   #   storm.execute(execution)
   def execute(*args, &block)
     if block_given?
@@ -93,11 +108,6 @@ class ThreadStorm
     end
     @workers.each{ |worker| worker.thread.join }
     true
-  end
-  
-  # Returns workers that are currently running executions.
-  def busy_workers
-    @workers.select{ |worker| worker.busy? }
   end
   
   # Returns an array of Ruby threads in the pool.
