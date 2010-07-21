@@ -8,6 +8,24 @@ require "thread_storm/worker"
 # Simple but powerful thread pool implementation.
 class ThreadStorm
   
+  VERSION = File.read(File.dirname(__FILE__)+"/../VERSION").chomp
+  
+  DEFAULT_OPTIONS = { :size => 2,
+                      :execute_blocks => false,
+                      :timeout => nil,
+                      :timeout_method => Timeout.method(:timeout),
+                      :default_value => nil,
+                      :reraise => true }.freeze
+  
+  @options = DEFAULT_OPTIONS.dup
+  metaclass.class_eval do
+    # Global options.
+    attr_reader :options
+  end
+  
+  # Options specific to a ThreadStorm instance.
+  attr_reader :options
+  
   # Array of executions in order as they are defined by calls to ThreadStorm#execute.
   attr_reader :executions
   
@@ -15,13 +33,16 @@ class ThreadStorm
   #   new(options = {}) -> thread_storm
   #   new(options = {}){ |self| ... } -> thread_storm
   #
-  # Valid options are
-  #   :size => How many threads to spawn.  Default is 2.
-  #   :timeout => Max time an execution is allowed to run before terminating it.  Default is nil (no timeout).
-  #   :timeout_method => An object that implements something like Timeout.timeout via #call.  Default is Timeout.method(:timeout).
-  #   :default_value => Value of an execution if it times out or errors.  Default is nil.
-  #   :reraise => True if you want exceptions reraised when ThreadStorm#join is called.  Default is true.
-  #   :execute_blocks => True if you want #execute to block until there is an available thread.  Default is false.
+  # Valid _options_ are...
+  #   :size => How many threads to spawn.
+  #   :timeout => Max time an execution is allowed to run before terminating it.  Nil means no timeout.
+  #   :timeout_method => An object that implements something like Timeout.timeout via #call..
+  #   :default_value => Value of an execution if it times out or errors..
+  #   :reraise => True if you want exceptions to be reraised when ThreadStorm#join is called.
+  #   :execute_blocks => True if you want #execute to block until there is an available thread.
+  #
+  # For defaults, see DEFAULT_OPTIONS.
+  #
   # When given a block, #join and #shutdown are called for you.  In other words...
   #   ThreadStorm.new do |storm|
   #     storm.execute{ sleep(1) }
@@ -32,26 +53,16 @@ class ThreadStorm
   #   storm.join
   #   storm.shutdown
   def initialize(options = {})
-    @options = options.option_merge :size => 2,
-                                    :timeout => nil,
-                                    :timeout_method => Timeout.method(:timeout),
-                                    :default_value => nil,
-                                    :reraise => true,
-                                    :execute_blocks => false
+    @options = options.reverse_merge(self.class.options).freeze
     @sentinel = Sentinel.new
     @queue = []
     @executions = []
-    @workers = (1..@options[:size]).collect{ Worker.new(@queue, @sentinel, @options) }
+    @workers = (1..@options[:size]).collect{ Worker.new(@queue, @sentinel) }
     if block_given?
       yield(self)
       join
       shutdown
     end
-  end
-  
-  # Returns the size of the thread pool (i.e. the :size option in new).
-  def size
-    @options[:size]
   end
   
   # call-seq:
@@ -71,14 +82,11 @@ class ThreadStorm
       raise ArgumentError, "execution or arguments and block expected"
     end
     
-    # Oh, gross.
-    execution.instance_variable_set("@value", default_value)
-    
     @sentinel.synchronize do |e_cond, p_cond|
-      e_cond.wait_while{ all_workers_busy? } if execute_blocks?
+      e_cond.wait_while{ all_workers_busy? } if options[:execute_blocks]
       @executions << execution
       @queue << execution
-      execution.queued!
+      execution.queued!(options)
       p_cond.signal
     end
     
@@ -90,7 +98,7 @@ class ThreadStorm
   def join
     @executions.each do |execution|
       execution.join
-      raise execution.exception if execution.exception? and reraise?
+      raise execution.exception if execution.exception? and options[:reraise]
     end
   end
   
@@ -103,7 +111,7 @@ class ThreadStorm
   # executions) and blocks until they do.
   def shutdown
     @sentinel.synchronize do |e_cond, p_cond|
-      @queue.replace([:die] * size)
+      @queue.replace([:die] * options[:size])
       p_cond.broadcast
     end
     @workers.each{ |worker| worker.thread.join }
@@ -137,18 +145,6 @@ class ThreadStorm
   end
   
 private
-  
-  def default_value #:nodoc:
-    @options[:default_value]
-  end
-  
-  def reraise? #:nodoc:
-    @options[:reraise]
-  end
-  
-  def execute_blocks? #:nodoc:
-    @options[:execute_blocks]
-  end
   
   def all_workers_busy? #:nodoc:
     @workers.all?{ |worker| worker.busy? }

@@ -1,7 +1,11 @@
 0.6.0
- - Removed ThreadStory#busy_workers.
+ - ThreadStorm::Execution#options (options specific to an execution).
+ - Added ThreadStorm#options (options specific to a ThreadStorm instance).
+ - Added ThreadStorm.options (global options).
+ - Removed ThreadStorm#size.
+ - Removed ThreadStorm#busy_workers.
  - ThreadStorm#execution can now take an execution instance.
- - ThreadStorm::Execution.new to create an execution in the :new state.
+ - ThreadStorm::Execution.new creates an execution in the :new state.
  - Execution states (:new, :queued, :started, :finished)
  - Changed Execution#duration to return nil if the execution is not in the :started or :finished state.
 

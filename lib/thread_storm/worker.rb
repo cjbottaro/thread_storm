@@ -3,20 +3,11 @@ class ThreadStorm
     attr_reader :thread, :execution
     
     # Takes the threadsafe queue and options from the thread pool.
-    def initialize(queue, sentinel, options)
+    def initialize(queue, sentinel)
       @queue     = queue
       @sentinel  = sentinel
-      @options   = options
       @execution = nil # Current execution we're working on.
       @thread    = Thread.new(self){ |me| me.run }
-    end
-    
-    def timeout
-      @timeout ||= @options[:timeout]
-    end
-    
-    def timeout_method
-      @timeout_method ||= @options[:timeout_method]
     end
     
     # Pop executions and process them until we're signaled to die.
@@ -35,7 +26,7 @@ class ThreadStorm
         p_cond.wait_while{ @queue.empty? }
         
         # Get the work to do (implicitly becoming busy).
-        @execution = @queue.pop
+        @execution = @queue.shift
       end
       
       process_execution_with_timeout unless die?
@@ -44,6 +35,12 @@ class ThreadStorm
     # Process the execution, handling timeouts and exceptions.
     def process_execution_with_timeout
       execution.started!
+      execution.prepare!
+      
+      # Pull out some options.
+      timeout = execution.options[:timeout]
+      timeout_method = execution.options[:timeout_method]
+      
       begin
         if timeout
           timeout_method.call(timeout){ execution.execute! }

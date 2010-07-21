@@ -40,6 +40,10 @@ class ThreadStorm
     # The state of an execution (:new, :queued, :started or :finished).
     attr_reader :state
     
+    # Options specific to an Execution instance.  Note that you cannot assign or
+    # modify the options once the execution has entered the :started state.
+    attr_accessor :options
+    
     attr_reader :block, :thread #:nodoc:
     
     # Create an execution.  The execution will be in the :new state.  Call
@@ -56,6 +60,7 @@ class ThreadStorm
       @thread = nil
       @lock = Monitor.new
       @cond = @lock.new_cond
+      @options = {}
       new!
     end
     
@@ -168,8 +173,9 @@ class ThreadStorm
       enter_state!(STATE_NEW)
     end
     
-    def queued! #:nodoc:
+    def queued!(options) #:nodoc:
       enter_state!(STATE_QUEUED)
+      @storm_options = options
     end
     
     def started! #:nodoc:
@@ -192,8 +198,21 @@ class ThreadStorm
       @exception = e
     end
     
+    def prepare! #:nodoc:
+      @options = @options.reverse_merge(@storm_options).freeze
+      @value = @options[:default_value]
+    end
+    
     def execute! #:nodoc:
       @value = block.call(*args)
+    end
+    
+    def options=(options) #:nodoc:
+      if @options.frozen?
+        raise RuntimeError, "options are frozen"
+      else
+        @options = options
+      end
     end
     
   end

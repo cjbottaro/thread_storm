@@ -203,7 +203,7 @@ class TestThreadStorm < Test::Unit::TestCase
     storm.execute(execution)
     assert_equal :queued, execution.state
     
-    lock.synchronize{ var = 2; cond.signal }
+    lock.synchronize{ var = 2; cond.broadcast }
     lock.synchronize{ cond.wait_until{ var == 3 } }
     assert_equal :started, execution.state
     
@@ -223,6 +223,45 @@ class TestThreadStorm < Test::Unit::TestCase
     assert execution.state_duration(:finished) > 0
     
     storm.shutdown
+  end
+  
+  def test_global_options
+    storm = ThreadStorm.new
+    assert_equal ThreadStorm::DEFAULT_OPTIONS, storm.options
+    
+    ThreadStorm.options[:size] = 5
+    ThreadStorm.options[:timeout] = 10
+    ThreadStorm.options[:default_value] = "new_default_value"
+    storm = ThreadStorm.new
+    assert_not_equal ThreadStorm::DEFAULT_OPTIONS, storm.options
+    assert_equal 5, storm.options[:size]
+    assert_equal 10, storm.options[:timeout]
+    assert_equal "new_default_value", storm.options[:default_value]
+    
+    # !IMPORTANT! So the rest of the tests work...
+    ThreadStorm.options.replace(ThreadStorm::DEFAULT_OPTIONS)
+  end
+  
+  def test_execution_options
+    e1 = ThreadStorm::Execution.new{ sleep }
+    e2 = ThreadStorm::Execution.new{ sleep }
+    e3 = ThreadStorm::Execution.new{ sleep }
+    e1.options[:timeout] = 0.1
+    e2.options[:timeout] = 0.2
+    ThreadStorm.new :timeout => 0.3 do |storm|
+      storm.execute(e1)
+      storm.execute(e2)
+      storm.execute(e3)
+    end
+    assert [e1, e2, e3].all?{ |e| e.timed_out? }
+    
+    # Yes, I know the following is a bad test...
+    assert e1.duration < 0.2
+    assert e2.duration < 0.3
+    assert e3.duration < 0.4
+    
+    assert_raises(RuntimeError){ e1.options = { :timeout => 0.4 } }
+    assert_raises(RuntimeError, TypeError){ e1.options[:timeout] = 0.4 }
   end
   
 end

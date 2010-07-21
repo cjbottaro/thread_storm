@@ -35,6 +35,10 @@ end
 
 class Object #:nodoc:
   
+  def metaclass
+    class << self; self; end
+  end
+  
   def tap
     yield(self)
     self
