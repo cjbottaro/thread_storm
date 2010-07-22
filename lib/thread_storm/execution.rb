@@ -2,23 +2,19 @@ require "monitor"
 
 class ThreadStorm
   # Encapsulates a unit of work to be sent to the thread pool.
-  #
-  # Executions are in one of four states:  :new, :queued, :started or :finished.
-  #
-  # :new is the initial state when an execution has been created, but hasn't been scheduled to run.
-  #
-  # :queued is the state when an execution is scheduled and is waiting for an available thread.
-  #
-  # :started is the state when an execution is running its code block on an available thread.
-  #
-  # :finished is the state when an execution has completed running its code block.
   class Execution
     
+    # When an execution has been created, but hasn't been scheduled to run.
     STATE_NEW      = 0
+    # When an execution has been scheduled to run but is waiting for an available thread.
     STATE_QUEUED   = 1
+    # When an execution is running on a thread.
     STATE_STARTED  = 2
+    # When an execution has finished running.
     STATE_FINISHED = 3
     
+    # A hash mapping state symbols (:new, :queued, :started, :finished) to their
+    # corresponding state constant values.
     STATE_SYMBOLS = {
       :new      => STATE_NEW,
       :queued   => STATE_QUEUED,
@@ -26,6 +22,7 @@ class ThreadStorm
       :finished => STATE_FINISHED
     }
     
+    # Inverted STATE_SYMBOLS.
     STATE_SYMBOLS_INVERTED = STATE_SYMBOLS.invert
     
     # The arguments passed into new or ThreadStorm#execute.
@@ -41,7 +38,7 @@ class ThreadStorm
     attr_reader :state
     
     # Options specific to an Execution instance.  Note that you cannot assign or
-    # modify the options once the execution has entered the :started state.
+    # modify the options once ThreadStorm#execute has been called on the execution.
     attr_accessor :options
     
     attr_reader :block, :thread #:nodoc:
@@ -135,7 +132,7 @@ class ThreadStorm
     # If the execution is in the :started state, then returns Time.now - start_time (i.e. how long it has been running for).
     # Otherwise returns nil.
     #
-    # This is an alias for #state_duration(:started).
+    # This is an alias for Execution#state_duration(:started).
     def duration
       state_duration(:started)
     end
@@ -173,9 +170,8 @@ class ThreadStorm
       enter_state!(STATE_NEW)
     end
     
-    def queued!(options) #:nodoc:
+    def queued! #:nodoc:
       enter_state!(STATE_QUEUED)
-      @storm_options = options
     end
     
     def started! #:nodoc:
@@ -198,8 +194,8 @@ class ThreadStorm
       @exception = e
     end
     
-    def prepare! #:nodoc:
-      @options = @options.reverse_merge(@storm_options).freeze
+    def prepare!(options) #:nodoc:
+      @options = @options.reverse_merge(options).freeze
       @value = @options[:default_value]
     end
     

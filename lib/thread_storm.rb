@@ -8,8 +8,10 @@ require "thread_storm/worker"
 # Simple but powerful thread pool implementation.
 class ThreadStorm
   
+  # Version of ThreadStorm that you are using.
   VERSION = File.read(File.dirname(__FILE__)+"/../VERSION").chomp
   
+  # Default options found in ThreadStorm.options.
   DEFAULT_OPTIONS = { :size => 2,
                       :execute_blocks => false,
                       :timeout => nil,
@@ -43,7 +45,7 @@ class ThreadStorm
   #
   # For defaults, see DEFAULT_OPTIONS.
   #
-  # When given a block, #join and #shutdown are called for you.  In other words...
+  # When given a block, ThreadStorm#join and ThreadStorm#shutdown are called for you.  In other words...
   #   ThreadStorm.new do |storm|
   #     storm.execute{ sleep(1) }
   #   end
@@ -54,10 +56,9 @@ class ThreadStorm
   #   storm.shutdown
   def initialize(options = {})
     @options = options.reverse_merge(self.class.options).freeze
-    @sentinel = Sentinel.new
-    @queue = []
+    @sentinel = Sentinel.new(@options[:size])
     @executions = []
-    @workers = (1..@options[:size]).collect{ Worker.new(@queue, @sentinel) }
+    @workers = (1..@options[:size]).collect{ Worker.new(@sentinel) }
     if block_given?
       yield(self)
       join
@@ -82,13 +83,15 @@ class ThreadStorm
       raise ArgumentError, "execution or arguments and block expected"
     end
     
-    @sentinel.synchronize do |e_cond, p_cond|
-      e_cond.wait_while{ all_workers_busy? } if options[:execute_blocks]
-      @executions << execution
-      @queue << execution
-      execution.queued!(options)
-      p_cond.signal
+    execution.prepare!(options)
+    
+    @sentinel.synchronize do |s|
+      s.incr_queue_size if options[:execute_blocks]
+      s.push_queue(execution)
+      execution.queued! # This needs to be in here or we'll get a race condition to set the execution's state.
     end
+    
+    @executions << execution
     
     execution
   end
@@ -110,10 +113,7 @@ class ThreadStorm
   # Signals the worker threads to terminate immediately (ignoring any pending
   # executions) and blocks until they do.
   def shutdown
-    @sentinel.synchronize do |e_cond, p_cond|
-      @queue.replace([:die] * options[:size])
-      p_cond.broadcast
-    end
+    @sentinel.shutdown_queue
     @workers.each{ |worker| worker.thread.join }
     true
   end
@@ -142,12 +142,6 @@ class ThreadStorm
       end
     end
     cleared
-  end
-  
-private
-  
-  def all_workers_busy? #:nodoc:
-    @workers.all?{ |worker| worker.busy? }
   end
   
 end

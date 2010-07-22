@@ -1,4 +1,5 @@
 0.6.0
+ - Fixed a bug with the :execute_blocks option.
  - ThreadStorm::Execution#options (options specific to an execution).
  - Added ThreadStorm#options (options specific to a ThreadStorm instance).
  - Added ThreadStorm.options (global options).
