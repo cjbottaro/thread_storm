@@ -1,3 +1,0 @@
-* Global defaults, e.g.:
-  ThreadStorm.timeout_method = SystemTimer.method(:timeout)
-  

@@ -5,16 +5,17 @@
 
 Gem::Specification.new do |s|
   s.name = %q{thread_storm}
-  s.version = "0.5.1"
+  s.version = "0.6.0"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Christopher J. Bottaro"]
-  s.date = %q{2010-06-24}
+  s.date = %q{2010-08-04}
   s.description = %q{Simple thread pool with timeouts, default values, error handling, state tracking and unit tests.}
   s.email = %q{cjbottaro@alumni.cs.utexas.edu}
   s.extra_rdoc_files = [
     "LICENSE",
-     "README.rdoc"
+     "README.rdoc",
+     "TODO"
   ]
   s.files = [
     ".document",
@@ -23,6 +24,7 @@ Gem::Specification.new do |s|
      "LICENSE",
      "README.rdoc",
      "Rakefile",
+     "TODO",
      "VERSION",
      "lib/thread_storm.rb",
      "lib/thread_storm/active_support.rb",
