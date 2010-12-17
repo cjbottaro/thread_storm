@@ -4,22 +4,24 @@ class ThreadStorm
   # Encapsulates a unit of work to be sent to the thread pool.
   class Execution
     
-    # When an execution has been created, but hasn't been scheduled to run.
-    STATE_NEW      = 0
-    # When an execution has been scheduled to run but is waiting for an available thread.
-    STATE_QUEUED   = 1
-    # When an execution is running on a thread.
-    STATE_STARTED  = 2
-    # When an execution has finished running.
-    STATE_FINISHED = 3
+    class TimeoutError < Timeout::Error; end
     
-    # A hash mapping state symbols (:new, :queued, :started, :finished) to their
+    # When an execution has been created, but hasn't been scheduled to run.
+    STATE_INITIALIZED = 0
+    # When an execution has been scheduled to run but is waiting for an available thread.
+    STATE_QUEUED      = 1
+    # When an execution is running on a thread.
+    STATE_STARTED     = 2
+    # When an execution has finished running.
+    STATE_FINISHED    = 3
+    
+    # A hash mapping state symbols (:initialized, :queued, :started, :finished) to their
     # corresponding state constant values.
     STATE_SYMBOLS = {
-      :new      => STATE_NEW,
-      :queued   => STATE_QUEUED,
-      :started  => STATE_STARTED,
-      :finished => STATE_FINISHED
+      :initialized  => STATE_INITIALIZED,
+      :queued       => STATE_QUEUED,
+      :started      => STATE_STARTED,
+      :finished     => STATE_FINISHED
     }
     
     # Inverted STATE_SYMBOLS.
@@ -34,107 +36,125 @@ class ThreadStorm
     # If an exception was raised when running an execution, it is stored here.
     attr_reader :exception
     
-    # The state of an execution (:new, :queued, :started or :finished).
-    attr_reader :state
+    # If an execution timed out, the timeout exception is stored here.
+    attr_reader :timeout_exception
     
-    # Options specific to an Execution instance.  Note that you cannot assign or
-    # modify the options once ThreadStorm#execute has been called on the execution.
-    attr_accessor :options
+    # Options specific to an Execution instance.  Note that you cannot modify
+    # the options once ThreadStorm#execute has been called on the execution.
+    attr_reader :options
     
     attr_reader :block, :thread #:nodoc:
     
-    # Create an execution.  The execution will be in the :new state.  Call
+    # Create an execution. The execution will be in the :initialized state. Call
     # ThreadStorm#execute to schedule the execution to be run and transition
     # it into the :queued state.
     def initialize(*args, &block)
+      @options = {}
       @state = nil
-      @state_times = {}
+      @state_at = []
       @args = args
       @value = nil
       @block = block
       @exception = nil
-      @timed_out = false
+      @timeout = false
       @thread = nil
       @lock = Monitor.new
       @cond = @lock.new_cond
-      @options = {}
-      new!
+      enter_state(:initialized)
     end
     
-    # The state of an execution as a symbol (See STATE_SYMBOLS).
-    def state
-      STATE_SYMBOLS_INVERTED[@state] or raise RuntimeError, "invalid state: #{@state.inspect}"
+    # Returns the state of an execution.  If _how_ is set to :sym, returns the state as symbol.
+    def state(how = :const)
+      if how == :sym
+        STATE_SYMBOLS_INVERTED[@state] or raise RuntimeError, "invalid state: #{@state.inspect}"
+      else
+        @state
+      end
     end
     
-    # True if an execution is in the :new state.
-    def new?
-      @state == STATE_NEW
+    # Returns true if the execution is currently in the given state.
+    # _state_ can be either a state constant or symbol.
+    def state?(state)
+      @state == state_to_const(state)
     end
     
-    # True if an execution is in the :queued state.
+    # Returns true if the execution is currently in the :initialized state.
+    def initialized?
+      state?(STATE_INITIALIZED)
+    end
+    
+    # Returns true if the execution is currently in the :queued state.
     def queued?
-      @state == STATE_QUEUED
+      state?(STATE_QUEUED)
     end
     
-    # True if an execution is in the :started state.
+    # Returns true if the execution is currently in the :started state.
     def started?
-      @state == STATE_STARTED
+      state?(STATE_STARTED)
     end
     
-    alias_method :running?, :started?
-    
-    # True if an execution is in the :finished state.
+    # Returns true if the execution is currently in the :finished state.
     def finished?
-      @state == STATE_FINISHED
+      state?(STATE_FINISHED)
     end
     
-    # When this execution entered the :new state.
-    def new_time
-      state_time(:new)
+    # Returns the time when the execution entered the given state.
+    # _state_ can be either a state constant or symbol.
+    def state_at(state)
+      @state_at[state_to_const(state)]
+    end
+    
+    # When this execution entered the :initialized state.
+    def initialized_at
+      state_at(:initialized)
     end
     
     # When this execution entered the :queued state.
-    def queue_time
-      state_time(:queued)
+    def queued_at
+      state_at(:queued)
     end
     
     # When this execution entered the :started state.
-    def start_time
-      state_time(:started)
+    def started_at
+      state_at(:started)
     end
     
     # When this execution entered the :finished state.
-    def finish_time
-      state_time(:finished)
+    def finished_at
+      state_at(:finished)
     end
     
-    # When an execution entered a given state.
-    # _state_ is a symbol (See STATE_SYMBOLS).
-    def state_time(state)
-      state = STATE_SYMBOLS[state]
-      @state_times[state]
-    end
-    
-    # How long an execution has been in a given state.
-    # _state_ is a symbol (See STATE_SYMBOLS).
-    def state_duration(state)
-      state = STATE_SYMBOLS[state]
+    # How long an execution was (or has been) in a given state.
+    # _state_ can be either a state constant or symbol.
+    def duration(state = :started)
+      state = state_to_const(state)
       if state == @state
-        Time.now - @state_times[state]
-      elsif state < @state
-        @state_times[state+1] - @state_times[state]
+        Time.now - state_at(state)
+      elsif state < @state and state_at(state)
+        next_state_at(state) - state_at(state)
       else
         nil
       end
     end
     
-    # If the execution is in the :finished state, then returns finish_time - start_time (i.e. how long it ran for).
-    # If the execution is in the :started state, then returns Time.now - start_time (i.e. how long it has been running for).
-    # Otherwise returns nil.
-    #
-    # This is an alias for Execution#state_duration(:started).
-    def duration
-      state_duration(:started)
+    # This is soley for ThreadStorm to put the execution into the queued state.
+    def queued! #:nodoc:
+      options.freeze
+      enter_state(STATE_QUEUED)
+    end
+    
+    def execute #:nodoc:
+      @thread = Thread.current
+      enter_state(STATE_STARTED)
+      do_execute
+    rescue options[:timeout_error] => e
+      @timeout_exception = e
+      @value = options[:default_value]
+    rescue Exception => e
+      @exception = e
+      @value = options[:default_value]
+    ensure
+      enter_state(STATE_FINISHED)
     end
     
     # True if this execution raised an exception.
@@ -143,15 +163,14 @@ class ThreadStorm
     end
     
     # True if the execution went over the timeout limit.
-    def timed_out?
-      !!@timed_out
+    def timeout?
+      !!@timeout_exception
     end
     
     # Block until this execution has finished running. 
     def join
-      @lock.synchronize do
-        @cond.wait_until{ finished? }
-      end
+      @lock.synchronize{ @cond.wait_until{ finished? } }
+      raise exception if exception? and options[:reraise]
       true
     end
     
@@ -161,53 +180,66 @@ class ThreadStorm
       join and @value
     end
     
-    def enter_state!(state) #:nodoc:
-      @state = state
-      @state_times[@state] = Time.now
-    end
+  private
     
-    def new! #:nodoc:
-      enter_state!(STATE_NEW)
-    end
-    
-    def queued! #:nodoc:
-      enter_state!(STATE_QUEUED)
-    end
-    
-    def started! #:nodoc:
-      enter_state!(STATE_STARTED)
-      @thread = Thread.current
-    end
-    
-    def finished! #:nodoc:
-      @lock.synchronize do
-        enter_state!(STATE_FINISHED)
-        @cond.signal
+    # Enters _state_ doing some error checking, callbacks, and special case for entering the finished state.
+    def enter_state(state) #:nodoc:
+      state = state_to_const(state)
+      raise RuntimeError, "invalid state transition from #{@state} to #{state}" unless @state.nil? or state > @state
+      
+      # If we're entering the finished state, we need to signal any threads that called join and are waiting.
+      if state == STATE_FINISHED
+        @lock.synchronize{ do_enter_state(state); @cond.broadcast }
+      else
+        do_enter_state(state)
+      end
+      
+      if (callback = options["#{state_to_sym(state)}_callback".to_sym])
+        callback.call(self)
       end
     end
     
-    def timed_out! #:nodoc:
-      @timed_out = true
+    # Enters _state_ and set records the time.
+    def do_enter_state(state)
+      @state = state
+      @state_at[@state] = Time.now
     end
     
-    def exception!(e) #:nodoc:
-      @exception = e
+    # Finds the next state from _state_ that has a state_at time.
+    # Ex:
+    #   [0:10, nil, 0:15, 0:20]
+    #   next_state_at(0) -> 0:15
+    def next_state_at(state)
+      @state_at[state+1..-1].detect{ |time| !time.nil? }
     end
     
-    def prepare!(options) #:nodoc:
-      @options = @options.reverse_merge(options).freeze
-      @value = @options[:default_value]
-    end
-    
-    def execute! #:nodoc:
-      @value = block.call(*args)
-    end
-    
-    def options=(options) #:nodoc:
-      if @options.frozen?
-        raise RuntimeError, "options are frozen"
+    # Execute the stored block and args, wrapping in a timeout call if needed.
+    def do_execute
+      timeout           = options[:timeout]
+      timeout_method    = options[:timeout_method]
+      
+      if timeout
+        timeout_method.call(timeout){ @value = block.call(*args) }
       else
-        @options = options
+        @value = block.call(*args)
+      end
+    end
+    
+    # Normalizes _state_ to a constant (integer).
+    def state_to_const(state)
+      if state.kind_of?(Symbol)
+        STATE_SYMBOLS[state]
+      else
+        state
+      end
+    end
+    
+    # Normalizes _state_ to a symbol.
+    def state_to_sym(state)
+      if state.kind_of?(Symbol)
+        state
+      else
+        STATE_SYMBOLS_INVERTED[state]
       end
     end
     

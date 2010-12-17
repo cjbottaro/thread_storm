@@ -9,7 +9,7 @@ Gem::Specification.new do |s|
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Christopher J. Bottaro"]
-  s.date = %q{2010-08-04}
+  s.date = %q{2010-10-23}
   s.description = %q{Simple thread pool with timeouts, default values, error handling, state tracking and unit tests.}
   s.email = %q{cjbottaro@alumni.cs.utexas.edu}
   s.extra_rdoc_files = [
@@ -29,7 +29,7 @@ Gem::Specification.new do |s|
      "lib/thread_storm.rb",
      "lib/thread_storm/active_support.rb",
      "lib/thread_storm/execution.rb",
-     "lib/thread_storm/sentinel.rb",
+     "lib/thread_storm/queue.rb",
      "lib/thread_storm/worker.rb",
      "test/helper.rb",
      "test/test_thread_storm.rb",

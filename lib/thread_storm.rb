@@ -1,7 +1,7 @@
 require "thread"
 require "timeout"
 require "thread_storm/active_support"
-require "thread_storm/sentinel"
+require "thread_storm/queue"
 require "thread_storm/execution"
 require "thread_storm/worker"
 
@@ -15,7 +15,8 @@ class ThreadStorm
   DEFAULT_OPTIONS = { :size => 2,
                       :execute_blocks => false,
                       :timeout => nil,
-                      :timeout_method => Timeout.method(:timeout),
+                      :timeout_method => Proc.new{ |seconds, &block| Timeout.timeout(seconds, Execution::TimeoutError){ block.call } },
+                      :timeout_error => Execution::TimeoutError,
                       :default_value => nil,
                       :reraise => true }.freeze
   
@@ -56,14 +57,22 @@ class ThreadStorm
   #   storm.shutdown
   def initialize(options = {})
     @options = options.reverse_merge(self.class.options).freeze
-    @sentinel = Sentinel.new(@options[:size])
+    @queue = Queue.new(@options[:size], @options[:execute_blocks])
     @executions = []
-    @workers = (1..@options[:size]).collect{ Worker.new(@sentinel) }
-    if block_given?
-      yield(self)
-      join
-      shutdown
+    @workers = (1..@options[:size]).collect{ Worker.new(@queue) }
+    run{ yield(self) } if block_given?
+  end
+  
+  def new_execution(*args, &block)
+    Execution.new(*args, &block).tap do |execution|
+      execution.options.replace(options.dup)
     end
+  end
+  
+  def run
+    yield(self)
+    join
+    shutdown
   end
   
   # call-seq:
@@ -76,18 +85,15 @@ class ThreadStorm
   #   storm.execute(execution)
   def execute(*args, &block)
     if block_given?
-      execution = Execution.new(*args, &block)
+      execution = new_execution(*args, &block)
     elsif args.length == 1 and args.first.instance_of?(Execution)
       execution = args.first
     else
       raise ArgumentError, "execution or arguments and block expected"
     end
     
-    execution.prepare!(options)
-    
-    @sentinel.synchronize do |s|
-      s.incr_queue_size if options[:execute_blocks]
-      s.push_queue(execution)
+    @queue.synchronize do |q|
+      q.enqueue(execution)
       execution.queued! # This needs to be in here or we'll get a race condition to set the execution's state.
     end
     
@@ -101,7 +107,6 @@ class ThreadStorm
   def join
     @executions.each do |execution|
       execution.join
-      raise execution.exception if execution.exception? and options[:reraise]
     end
   end
   
@@ -113,7 +118,7 @@ class ThreadStorm
   # Signals the worker threads to terminate immediately (ignoring any pending
   # executions) and blocks until they do.
   def shutdown
-    @sentinel.shutdown_queue
+    @queue.shutdown
     @workers.each{ |worker| worker.thread.join }
     true
   end

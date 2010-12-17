@@ -35,7 +35,7 @@ class TestThreadStorm < Test::Unit::TestCase
     storm.execute{ sleep(0.02); "two" }
     storm.execute{ sleep(0.01); "three" }
     assert_equal ["one", nil, "three"], storm.values
-    assert storm.executions[1].timed_out?
+    assert storm.executions[1].timeout?
     assert_all_threads_worked(storm)
   end
   
@@ -49,7 +49,7 @@ class TestThreadStorm < Test::Unit::TestCase
     storm.execute{ sleep(0.02); "two" }
     storm.execute{ sleep(0.01); "three" }
     assert_equal ["one", nil, "three"], storm.values
-    assert storm.executions[1].timed_out?
+    assert storm.executions[1].timeout?
     assert_all_threads_worked(storm)
   end
   
@@ -59,7 +59,7 @@ class TestThreadStorm < Test::Unit::TestCase
     storm.execute{ sleep(0.02); "two" }
     storm.execute{ sleep(0.01); "three" }
     assert_equal ["one", nil, "three"], storm.values
-    assert storm.executions[1].timed_out?
+    assert storm.executions[1].timeout?
     assert_all_threads_worked(storm)
   end
   
@@ -69,7 +69,7 @@ class TestThreadStorm < Test::Unit::TestCase
     storm.execute{ sleep(0.02); "two" }
     storm.execute{ sleep(0.01); "three" }
     assert_equal ["one", "timed out", "three"], storm.values
-    assert storm.executions[1].timed_out?
+    assert storm.executions[1].timeout?
     assert_all_threads_worked(storm)
   end
   
@@ -198,29 +198,29 @@ class TestThreadStorm < Test::Unit::TestCase
         cond.signal
       end
     end
-    assert_equal :new, execution.state
+    assert_equal :initialized, execution.state(:sym)
     
     storm.execute(execution)
-    assert_equal :queued, execution.state
+    assert_equal :queued, execution.state(:sym)
     
     lock.synchronize{ var = 2; cond.broadcast }
     lock.synchronize{ cond.wait_until{ var == 3 } }
-    assert_equal :started, execution.state
+    assert_equal :started, execution.state(:sym)
     
     lock.synchronize{ var = 4; cond.signal }
     lock.synchronize{ cond.wait_until{ var == 5 } }
-    assert_equal :finished, execution.state
+    assert_equal :finished, execution.state(:sym)
     
     assert_equal false, execution.exception?
     
-    assert execution.new_time < execution.queue_time
-    assert execution.queue_time < execution.start_time
-    assert execution.start_time < execution.finish_time
+    assert execution.initialized_at < execution.queued_at
+    assert execution.queued_at < execution.started_at
+    assert execution.started_at < execution.finished_at
     
-    assert execution.state_duration(:new) > 0
-    assert execution.state_duration(:queued) > 0
-    assert execution.state_duration(:started) > 0
-    assert execution.state_duration(:finished) > 0
+    assert execution.duration(:initialized) > 0
+    assert execution.duration(:queued) > 0
+    assert execution.duration(:started) > 0
+    assert execution.duration(:finished) > 0
     
     storm.shutdown
   end
@@ -243,24 +243,25 @@ class TestThreadStorm < Test::Unit::TestCase
   end
   
   def test_execution_options
-    e1 = ThreadStorm::Execution.new{ sleep }
-    e2 = ThreadStorm::Execution.new{ sleep }
-    e3 = ThreadStorm::Execution.new{ sleep }
+    storm = ThreadStorm.new :timeout => 0.3
+    e1 = storm.new_execution{ sleep }
+    e2 = storm.new_execution{ sleep }
+    e3 = storm.new_execution{ sleep }
     e1.options[:timeout] = 0.1
     e2.options[:timeout] = 0.2
-    ThreadStorm.new :timeout => 0.3 do |storm|
+    
+    storm.run do
       storm.execute(e1)
       storm.execute(e2)
       storm.execute(e3)
     end
-    assert [e1, e2, e3].all?{ |e| e.timed_out? }
+    assert [e1, e2, e3].all?{ |e| e.timeout? }
     
     # Yes, I know the following is a bad test...
     assert e1.duration < 0.2
     assert e2.duration < 0.3
     assert e3.duration < 0.4
     
-    assert_raises(RuntimeError){ e1.options = { :timeout => 0.4 } }
     assert_raises(RuntimeError, TypeError){ e1.options[:timeout] = 0.4 }
   end
   
