@@ -88,6 +88,20 @@ The <tt>:timeout_method</tt> option takes any callable object (i.e. <tt>responds
     ...
   end
 
+== Caveats and Gotchas
+
+  ThreadStorm.new do |s|
+    s.execute{ raise RuntimeError }
+    begin
+      s.join
+    rescue RuntimeError => e
+      puts "execution failed"
+    end
+  end
+
+This will still raise an exception because if you pass a block to new, ThreadStorm#join will be
+called after the the block has run.  This same problem is applicable to ThreadStorm#run also.
+
 == Copyright
 
 Copyright (c) 2010 Christopher J. Bottaro. See LICENSE for details.

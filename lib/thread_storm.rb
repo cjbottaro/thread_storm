@@ -8,19 +8,22 @@ require "thread_storm/worker"
 # Simple but powerful thread pool implementation.
 class ThreadStorm
   
+  class TimeoutError < RuntimeError; end
+  class TimeoutExit < RuntimeError; end
+  
   # Version of ThreadStorm that you are using.
   VERSION = File.read(File.dirname(__FILE__)+"/../VERSION").chomp
   
   # Default options found in ThreadStorm.options.
-  DEFAULT_OPTIONS = { :size => 2,
-                      :execute_blocks => false,
-                      :timeout => nil,
-                      :timeout_method => Proc.new{ |seconds, &block| Timeout.timeout(seconds, Execution::TimeoutError){ block.call } },
-                      :timeout_error => Execution::TimeoutError,
-                      :default_value => nil,
-                      :reraise => true }.freeze
+  DEFAULTS = { :size => 2,
+               :execute_blocks => false,
+               :timeout => nil,
+               :timeout_method => Proc.new{ |seconds, &block| Timeout.timeout(seconds, Execution::TimeoutError, &block) },
+               :timeout_exception => Execution::TimeoutError,
+               :default_value => nil,
+               :reraise => true }.freeze
   
-  @options = DEFAULT_OPTIONS.dup
+  @options = DEFAULTS.dup
   metaclass.class_eval do
     # Global options.
     attr_reader :options
@@ -31,6 +34,53 @@ class ThreadStorm
   
   # Array of executions in order as they are defined by calls to ThreadStorm#execute.
   attr_reader :executions
+  
+  THIS_FILE = /\A#{Regexp.quote(__FILE__)}:/o
+  CALLER_OFFSET = ((c = caller[0]) && THIS_FILE =~ c) ? 1 : 0
+  
+  def self.timeout(seconds, exception = TimeoutError, &block)
+    lock = Monitor.new
+    cond = lock.new_cond
+    done = false
+    fail = false
+    exit = Class.new(TimeoutExit)
+    
+    thread = Thread.new do
+      begin
+        block.call(seconds)
+      rescue Exception => e
+        raise
+      ensure
+        lock.synchronize{ done = true; cond.signal }
+      end
+    end
+    
+    begin
+      lock.synchronize{ cond.wait(seconds) unless done }
+    rescue TimeoutExit => e
+      thread.raise e.class.new("execution expired") # Very important to make a new instance of e's class; don't just reraise e in the thread!
+      thread.join
+    end
+    
+    return thread.value if done and not fail
+    
+    thread.raise exit, "execution expired"
+    begin
+      thread.join
+    rescue exit => e
+      puts "!!!!!!!!!!!!!!!!!!"
+      puts caller
+      puts "!!!!!!!!!!!!!!!!!!"
+      # rej = /\A#{Regexp.quote(__FILE__)}:#{__LINE__-4}\z/o
+      #       (bt = e.backtrace).reject! {|m| rej =~ m}
+      #       level = -caller(CALLER_OFFSET).size
+      #       while THIS_FILE =~ bt[level]
+      #         bt.delete_at(level)
+      #         level += 1
+      #       end
+      raise exception, e.message, e.backtrace
+    end
+  end
   
   # call-seq:
   #   new(options = {}) -> thread_storm
@@ -44,7 +94,7 @@ class ThreadStorm
   #   :reraise => True if you want exceptions to be reraised when ThreadStorm#join is called.
   #   :execute_blocks => True if you want #execute to block until there is an available thread.
   #
-  # For defaults, see DEFAULT_OPTIONS.
+  # For defaults, see DEFAULTS.
   #
   # When given a block, ThreadStorm#join and ThreadStorm#shutdown are called for you.  In other words...
   #   ThreadStorm.new do |storm|
@@ -56,7 +106,7 @@ class ThreadStorm
   #   storm.join
   #   storm.shutdown
   def initialize(options = {})
-    @options = options.reverse_merge(self.class.options).freeze
+    @options = options.reverse_merge(self.class.options)
     @queue = Queue.new(@options[:size], @options[:execute_blocks])
     @executions = []
     @workers = (1..@options[:size]).collect{ Worker.new(@queue) }
@@ -119,7 +169,7 @@ class ThreadStorm
   # executions) and blocks until they do.
   def shutdown
     @queue.shutdown
-    @workers.each{ |worker| worker.thread.join }
+    threads.each{ |thread| thread.join }
     true
   end
   

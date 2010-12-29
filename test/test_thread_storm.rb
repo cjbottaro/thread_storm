@@ -2,85 +2,159 @@ require 'helper'
 
 class TestThreadStorm < Test::Unit::TestCase
   
+  def new_storm(options = {})
+    @storm = ThreadStorm.new(options)
+  end
+  
+  def storm
+    @storm
+  end
+  
+  def new_execution(*args, &block)
+    @storm.new_execution(*args, &block)
+  end
+  
+  def new_controlled_execution(start, finish, value = nil)
+    @controls ||= {}
+    
+    execution = new_execution{ nil }
+    proc = Proc.new do
+      send_sign(execution, start)
+      wait_sign(execution, finish)
+      value
+    end
+    execution.instance_variable_set(:@block, proc)
+    
+    sign = nil
+    lock = Monitor.new
+    cond = lock.new_cond
+    @controls[execution] = [sign, lock, cond]
+    
+    execution
+  end
+  
+  def wait_sign(execution, sign)
+    _sign, lock, cond = @controls[execution]
+    lock.synchronize{ cond.wait_until{ @controls[execution][0] == sign } }
+  end
+  
+  def send_sign(execution, sign)
+    _sign, lock, cond = @controls[execution]
+    lock.synchronize{ @controls[execution][0] = sign; cond.broadcast }
+  end
+  
   def test_no_concurrency
-    storm = ThreadStorm.new :size => 1
-    storm.execute{ sleep(0.01); "one" }
-    storm.execute{ sleep(0.01); "two" }
-    storm.execute{ sleep(0.01); "three" }
-    assert_equal %w[one two three], storm.values
-    assert_all_threads_worked(storm)
+    new_storm :size => 1
+    e1 = new_controlled_execution(1, 2)
+    e2 = new_controlled_execution(1, 2)
+    e3 = new_controlled_execution(1, 2)
+    storm.execute(e1)
+    storm.execute(e2)
+    storm.execute(e3)
+    
+    wait_sign(e1, 1)
+    assert_equal :started, e1.state(:sym)
+    assert_equal :queued,  e2.state(:sym)
+    assert_equal :queued,  e3.state(:sym)
+    
+    send_sign(e1, 2); e1.join
+    wait_sign(e2, 1)
+    assert_equal :finished, e1.state(:sym)
+    assert_equal :started,  e2.state(:sym)
+    assert_equal :queued,   e3.state(:sym)
+    
+    send_sign(e2, 2); e2.join
+    wait_sign(e3, 1)
+    assert_equal :finished, e1.state(:sym)
+    assert_equal :finished, e2.state(:sym)
+    assert_equal :started,  e3.state(:sym)
+    
+    send_sign(e3, 2); e3.join
+    assert_equal :finished, e1.state(:sym)
+    assert_equal :finished, e2.state(:sym)
+    assert_equal :finished, e3.state(:sym)
   end
   
   def test_partial_concurrency
-    storm = ThreadStorm.new :size => 2
-    storm.execute{ sleep(0.01); "one" }
-    storm.execute{ sleep(0.01); "two" }
-    storm.execute{ sleep(0.01); "three" }
-    assert_equal %w[one two three], storm.values
-    assert_all_threads_worked(storm)
+    new_storm :size => 2
+    e1 = new_controlled_execution(1, 2)
+    e2 = new_controlled_execution(1, 2)
+    e3 = new_controlled_execution(1, 2)
+    storm.execute(e1)
+    storm.execute(e2)
+    storm.execute(e3)
+    
+    wait_sign(e1, 1)
+    wait_sign(e2, 1)
+    assert_equal :started, e1.state(:sym)
+    assert_equal :started, e2.state(:sym)
+    assert_equal :queued,  e3.state(:sym)
+    
+    send_sign(e1, 2); e1.join
+    send_sign(e2, 2); e2.join
+    wait_sign(e3, 1)
+    assert_equal :finished, e1.state(:sym)
+    assert_equal :finished, e2.state(:sym)
+    assert_equal :started,  e3.state(:sym)
+    
+    send_sign(e3, 2); e3.join
+    assert_equal :finished, e1.state(:sym)
+    assert_equal :finished, e2.state(:sym)
+    assert_equal :finished, e3.state(:sym)
   end
   
   def test_full_concurrency
-    storm = ThreadStorm.new :size => 3
-    storm.execute{ sleep(0.01); "one" }
-    storm.execute{ sleep(0.01); "two" }
-    storm.execute{ sleep(0.01); "three" }
-    assert_equal %w[one two three], storm.values
-    assert_all_threads_worked(storm)
+    new_storm :size => 3
+    e1 = new_controlled_execution(1, 2)
+    e2 = new_controlled_execution(1, 2)
+    e3 = new_controlled_execution(1, 2)
+    storm.execute(e1)
+    storm.execute(e2)
+    storm.execute(e3)
+    
+    wait_sign(e1, 1)
+    wait_sign(e2, 1)
+    wait_sign(e3, 1)
+    assert_equal :started, e1.state(:sym)
+    assert_equal :started, e2.state(:sym)
+    assert_equal :started, e3.state(:sym)
+    
+    send_sign(e1, 2); e1.join
+    send_sign(e2, 2); e2.join
+    send_sign(e3, 2); e3.join
+    assert_equal :finished, e1.state(:sym)
+    assert_equal :finished, e2.state(:sym)
+    assert_equal :finished, e3.state(:sym)
   end
   
-  def test_timeout_no_concurrency
-    storm = ThreadStorm.new :size => 1, :timeout => 0.015
-    storm.execute{ sleep(0.01); "one" }
-    storm.execute{ sleep(0.02); "two" }
-    storm.execute{ sleep(0.01); "three" }
-    assert_equal ["one", nil, "three"], storm.values
-    assert storm.executions[1].timeout?
-    assert_all_threads_worked(storm)
-  end
-  
-  # Tricky...
-  # 1 0.01s  ----
-  # 2 0.015s ------
-  # 3 0.01s      ----
-  def test_timeout_partial_concurrency
-    storm = ThreadStorm.new :size => 2, :timeout => 0.015
-    storm.execute{ sleep(0.01); "one" }
-    storm.execute{ sleep(0.02); "two" }
-    storm.execute{ sleep(0.01); "three" }
-    assert_equal ["one", nil, "three"], storm.values
-    assert storm.executions[1].timeout?
-    assert_all_threads_worked(storm)
-  end
-  
-  def test_timeout_full_concurrency
-    storm = ThreadStorm.new :size => 3, :timeout => 0.015
-    storm.execute{ sleep(0.01); "one" }
-    storm.execute{ sleep(0.02); "two" }
-    storm.execute{ sleep(0.01); "three" }
-    assert_equal ["one", nil, "three"], storm.values
-    assert storm.executions[1].timeout?
-    assert_all_threads_worked(storm)
+  def test_timeout
+    ThreadStorm.new :size => 1, :timeout => 0.01 do |storm|
+      storm.execute{ sleep(0.02) }
+      storm.join
+      assert_equal true, storm.executions[0].timeout?
+      assert_equal nil, storm.executions[0].value
+    end
   end
   
   def test_timeout_with_default_value
-    storm = ThreadStorm.new :size => 1, :timeout => 0.015, :default_value => "timed out"
-    storm.execute{ sleep(0.01); "one" }
-    storm.execute{ sleep(0.02); "two" }
-    storm.execute{ sleep(0.01); "three" }
-    assert_equal ["one", "timed out", "three"], storm.values
-    assert storm.executions[1].timeout?
-    assert_all_threads_worked(storm)
+    ThreadStorm.new :size => 1, :timeout => 0.01, :default_value => "timed out" do |storm|
+      storm.execute{ sleep(0.02) }
+      storm.join
+      assert_equal true, storm.executions[0].timeout?
+      assert_equal "timed out", storm.executions[0].value
+    end
   end
   
-  def test_exception_handling
-    storm = ThreadStorm.new :size => 1, :reraise => false do |s|
-      s.execute{ raise ArgumentError, "test" }
+  def test_exception
+    ThreadStorm.new :size => 1 do |storm|
+      storm.execute{ raise ArgumentError, "test" }
+      assert_raise(ArgumentError){ storm.join }
+      assert_equal true, storm.executions[0].exception?
+      assert_equal ArgumentError, storm.executions[0].exception.class
+      assert_equal "test", storm.executions[0].exception.message
+      storm.clear_executions # We have to clear executions here or the exception will get
+                             # raised again when ThreadStorm#new eventually calls join.
     end
-    execution = storm.executions.first
-    assert execution.exception?
-    assert execution.exception.class == ArgumentError
-    assert execution.exception.message == "test"
   end
   
   def test_shutdown
@@ -157,18 +231,6 @@ class TestThreadStorm < Test::Unit::TestCase
     storm.shutdown
   end
   
-  def test_for_deadlocks
-    ThreadStorm.new :size => 10, :execute_blocks => true do |storm|
-      20.times do
-        storm.execute do
-          ThreadStorm.new :size => 10, :timeout => 0.5 do |storm2|
-            20.times{ storm2.execute{ sleep(rand) } }
-          end
-        end
-      end
-    end
-  end
-  
   def test_duration
     ThreadStorm.new do |s|
       e = s.execute{ sleep(0.2) }
@@ -180,22 +242,20 @@ class TestThreadStorm < Test::Unit::TestCase
   def test_states
     lock = Monitor.new
     cond = lock.new_cond
-    var  = 1
+    sign = 1
     
     storm = ThreadStorm.new :size => 1
     storm.execute do
       lock.synchronize do
-        cond.wait_until{ var == 2 }
+        cond.wait_until{ sign == 2 }
       end
     end
     
-    execution = ThreadStorm::Execution.new do
+    execution = storm.new_execution do
       lock.synchronize do
-        var = 3
+        sign = 3
         cond.signal
-        cond.wait_until{ var == 4 }
-        var = 5
-        cond.signal
+        cond.wait_until{ sign == 4 }
       end
     end
     assert_equal :initialized, execution.state(:sym)
@@ -203,12 +263,12 @@ class TestThreadStorm < Test::Unit::TestCase
     storm.execute(execution)
     assert_equal :queued, execution.state(:sym)
     
-    lock.synchronize{ var = 2; cond.broadcast }
-    lock.synchronize{ cond.wait_until{ var == 3 } }
+    lock.synchronize{ sign = 2; cond.broadcast }
+    lock.synchronize{ cond.wait_until{ sign == 3 } }
     assert_equal :started, execution.state(:sym)
     
-    lock.synchronize{ var = 4; cond.signal }
-    lock.synchronize{ cond.wait_until{ var == 5 } }
+    lock.synchronize{ sign = 4; cond.signal }
+    execution.join
     assert_equal :finished, execution.state(:sym)
     
     assert_equal false, execution.exception?
@@ -227,19 +287,19 @@ class TestThreadStorm < Test::Unit::TestCase
   
   def test_global_options
     storm = ThreadStorm.new
-    assert_equal ThreadStorm::DEFAULT_OPTIONS, storm.options
+    assert_equal ThreadStorm::DEFAULTS, storm.options
     
     ThreadStorm.options[:size] = 5
     ThreadStorm.options[:timeout] = 10
     ThreadStorm.options[:default_value] = "new_default_value"
     storm = ThreadStorm.new
-    assert_not_equal ThreadStorm::DEFAULT_OPTIONS, storm.options
+    assert_not_equal ThreadStorm::DEFAULTS, storm.options
     assert_equal 5, storm.options[:size]
     assert_equal 10, storm.options[:timeout]
     assert_equal "new_default_value", storm.options[:default_value]
     
     # !IMPORTANT! So the rest of the tests work...
-    ThreadStorm.options.replace(ThreadStorm::DEFAULT_OPTIONS)
+    ThreadStorm.options.replace(ThreadStorm::DEFAULTS)
   end
   
   def test_execution_options
@@ -263,6 +323,21 @@ class TestThreadStorm < Test::Unit::TestCase
     assert e3.duration < 0.4
     
     assert_raises(RuntimeError, TypeError){ e1.options[:timeout] = 0.4 }
+  end
+  
+  def test_callback_exception
+    storm = ThreadStorm.new :size => 1
+    storm.options[:finished_callback] = Proc.new{ raise RuntimeError, "oops" }
+    e = storm.execute{ "success" }
+    storm.join
+    assert_equal false, e.exception?
+    assert_equal "success", e.value
+    assert_equal true, e.callback_exception?
+    assert_equal false, e.callback_exception?(:started)
+    assert_equal true, e.callback_exception?(:finished)
+    assert_equal RuntimeError, e.callback_exception(:finished).class
+    assert_equal "oops", e.callback_exception(:finished).message
+    assert storm.threads.all?{ |thread| thread.alive? }
   end
   
 end

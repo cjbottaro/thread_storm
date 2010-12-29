@@ -36,9 +36,6 @@ class ThreadStorm
     # If an exception was raised when running an execution, it is stored here.
     attr_reader :exception
     
-    # If an execution timed out, the timeout exception is stored here.
-    attr_reader :timeout_exception
-    
     # Options specific to an Execution instance.  Note that you cannot modify
     # the options once ThreadStorm#execute has been called on the execution.
     attr_reader :options
@@ -60,22 +57,25 @@ class ThreadStorm
       @thread = nil
       @lock = Monitor.new
       @cond = @lock.new_cond
+      @callback_exceptions = {}
       enter_state(:initialized)
     end
     
     # Returns the state of an execution.  If _how_ is set to :sym, returns the state as symbol.
     def state(how = :const)
-      if how == :sym
-        STATE_SYMBOLS_INVERTED[@state] or raise RuntimeError, "invalid state: #{@state.inspect}"
-      else
-        @state
+      @lock.synchronize do # See comment on #enter_state.
+        if how == :sym
+          STATE_SYMBOLS_INVERTED[@state] or raise RuntimeError, "invalid state: #{@state.inspect}"
+        else
+          @state
+        end
       end
     end
     
     # Returns true if the execution is currently in the given state.
     # _state_ can be either a state constant or symbol.
     def state?(state)
-      @state == state_to_const(state)
+      self.state == state_to_const(state)
     end
     
     # Returns true if the execution is currently in the :initialized state.
@@ -144,27 +144,55 @@ class ThreadStorm
     end
     
     def execute #:nodoc:
+      timeout           = options[:timeout]
+      timeout_method    = options[:timeout_method]
+      timeout_exception = options[:timeout_exception]
+      default_value     = options[:default_value]
+      
       @thread = Thread.current
       enter_state(STATE_STARTED)
-      do_execute
-    rescue options[:timeout_error] => e
-      @timeout_exception = e
-      @value = options[:default_value]
-    rescue Exception => e
-      @exception = e
-      @value = options[:default_value]
-    ensure
-      enter_state(STATE_FINISHED)
+      
+      begin
+        timeout_method.call(timeout){ @value = @block.call(*args) }
+      rescue timeout_exception => e
+        @exception = e
+        @value = default_value
+      rescue Exception => e
+        @exception = e
+        @value = default_value
+      ensure
+        enter_state(STATE_FINISHED)
+      end
+    end
+    
+    # True if the execution finished without failure (exception) or timeout.
+    def success?
+      state?(:finished) and !exception? and !timeout?
     end
     
     # True if this execution raised an exception.
-    def exception?
-      !!@exception
+    def failure?
+      state?(:finished) and !!@exception and !timeout?
     end
+    
+    # Deprecated... for backwards compatibility.
+    alias_method :exception?, :failure? #:nodoc:
     
     # True if the execution went over the timeout limit.
     def timeout?
-      !!@timeout_exception
+      !!@exception and @exception.kind_of?(options[:timeout_exception])
+    end
+    
+    def callback_exception?(state = nil)
+      ![nil, {}].include?(callback_exception(state))
+    end
+    
+    def callback_exception(state = nil)
+      if state
+        @callback_exceptions[state]
+      else
+        @callback_exceptions
+      end
     end
     
     # Block until this execution has finished running. 
@@ -187,15 +215,14 @@ class ThreadStorm
       state = state_to_const(state)
       raise RuntimeError, "invalid state transition from #{@state} to #{state}" unless @state.nil? or state > @state
       
-      # If we're entering the finished state, we need to signal any threads that called join and are waiting.
-      if state == STATE_FINISHED
-        @lock.synchronize{ do_enter_state(state); @cond.broadcast }
-      else
-        do_enter_state(state)
-      end
+      # We need state changes and callbacks to be atomic so that if we query a state change
+      # we can be sure that its corresponding callback has finished running as well. Thus
+      # we need to make sure to synchronize querying state (see #state).
       
-      if (callback = options["#{state_to_sym(state)}_callback".to_sym])
-        callback.call(self)
+      @lock.synchronize do
+        do_enter_state(state)
+        handle_callback(state)
+        @cond.broadcast if state == STATE_FINISHED # Wake any threads that called join and are waiting.
       end
     end
     
@@ -205,24 +232,23 @@ class ThreadStorm
       @state_at[@state] = Time.now
     end
     
+    def handle_callback(state)
+      state = state_to_sym(state)
+      callback = options["#{state}_callback".to_sym]
+      return unless callback
+      begin
+        callback.call(self)
+      rescue Exception => e
+        @callback_exceptions[state] = e
+      end
+    end
+    
     # Finds the next state from _state_ that has a state_at time.
     # Ex:
     #   [0:10, nil, 0:15, 0:20]
     #   next_state_at(0) -> 0:15
     def next_state_at(state)
       @state_at[state+1..-1].detect{ |time| !time.nil? }
-    end
-    
-    # Execute the stored block and args, wrapping in a timeout call if needed.
-    def do_execute
-      timeout           = options[:timeout]
-      timeout_method    = options[:timeout_method]
-      
-      if timeout
-        timeout_method.call(timeout){ @value = block.call(*args) }
-      else
-        @value = block.call(*args)
-      end
     end
     
     # Normalizes _state_ to a constant (integer).
