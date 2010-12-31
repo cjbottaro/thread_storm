@@ -63,12 +63,10 @@ class ThreadStorm
     
     # Returns the state of an execution.  If _how_ is set to :sym, returns the state as symbol.
     def state(how = :const)
-      @lock.synchronize do # See comment on #enter_state.
-        if how == :sym
-          STATE_SYMBOLS_INVERTED[@state] or raise RuntimeError, "invalid state: #{@state.inspect}"
-        else
-          @state
-        end
+      if how == :sym
+        STATE_SYMBOLS_INVERTED[@state] or raise RuntimeError, "invalid state: #{@state.inspect}"
+      else
+        @state
       end
     end
     
@@ -219,9 +217,10 @@ class ThreadStorm
       # we can be sure that its corresponding callback has finished running as well. Thus
       # we need to make sure to synchronize querying state (see #state).
       
+      handle_callback(state)
+      
       @lock.synchronize do
         do_enter_state(state)
-        handle_callback(state)
         @cond.broadcast if state == STATE_FINISHED # Wake any threads that called join and are waiting.
       end
     end

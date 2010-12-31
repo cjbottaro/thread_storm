@@ -325,19 +325,4 @@ class TestThreadStorm < Test::Unit::TestCase
     assert_raises(RuntimeError, TypeError){ e1.options[:timeout] = 0.4 }
   end
   
-  def test_callback_exception
-    storm = ThreadStorm.new :size => 1
-    storm.options[:finished_callback] = Proc.new{ raise RuntimeError, "oops" }
-    e = storm.execute{ "success" }
-    storm.join
-    assert_equal false, e.exception?
-    assert_equal "success", e.value
-    assert_equal true, e.callback_exception?
-    assert_equal false, e.callback_exception?(:started)
-    assert_equal true, e.callback_exception?(:finished)
-    assert_equal RuntimeError, e.callback_exception(:finished).class
-    assert_equal "oops", e.callback_exception(:finished).message
-    assert storm.threads.all?{ |thread| thread.alive? }
-  end
-  
 end

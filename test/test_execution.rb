@@ -94,26 +94,6 @@ class TestExecution < Test::Unit::TestCase
     assert_equal :finished, execution.state(:sym)
   end
   
-  def test_state_callbacks
-    
-    # The general premise of this test is that we assign a callback to increment
-    # this counter when we enter each state.
-    
-    counter = 0
-    callback = Proc.new{ counter += 1 }
-    execution = new_execution{ "done" }
-    assert_equal 0, counter
-    execution.options.merge! :queued_callback      => callback,
-                             :started_callback     => callback,
-                             :finished_callback    => callback
-        
-    execution.queued!
-    assert_equal 1, counter
-    
-    execution.execute
-    assert_equal 3, counter
-  end
-  
   def test_duration
     time, execution = Time.now, nil
     Timecop.freeze(time){ execution = ThreadStorm::Execution.new{ "done" } }
