@@ -113,9 +113,28 @@ class ThreadStorm
     run{ yield(self) } if block_given?
   end
   
+  # This is like Execution.new except the default options are specific this ThreadStorm instance.
+  #   ThreadStorm.options[:timeout]
+  #   # => nil
+  #   storm = ThreadStorm.new :timeout => 1
+  #   execution = storm.new_execution
+  #   execution.options[:timeout]
+  #   # => 1
+  #   execution = ThreadStorm::Execution.new
+  #   execution.options[:timeout]
+  #   # => nil
   def new_execution(*args, &block)
-    Execution.new(*args, &block).tap do |execution|
-      execution.options.replace(options.dup)
+    
+    # It has to be this way because of how options are merged.
+    
+    if block_given?
+      Execution.new(options.dup).define(*args, &block)
+    elsif args.length == 0
+      Execution.new(options.dup)
+    elsif args.length == 1 and args.first.kind_of?(Hash)
+      Execution.new(options.merge(args.first))
+    else
+      raise ArgumentError, "illegal call-seq"
     end
   end
   

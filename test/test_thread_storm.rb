@@ -325,4 +325,18 @@ class TestThreadStorm < Test::Unit::TestCase
     assert_raises(RuntimeError, TypeError){ e1.options[:timeout] = 0.4 }
   end
   
+  def test_new_execution_with_options
+    storm = ThreadStorm.new :timeout => 1
+    
+    execution = storm.new_execution
+    assert_equal nil, ThreadStorm.options[:timeout]
+    assert_equal 1, storm.options[:timeout]
+    assert_equal 1, execution.options[:timeout]
+    
+    execution = storm.new_execution :timeout => 2
+    assert_equal nil, ThreadStorm.options[:timeout]
+    assert_equal 1, storm.options[:timeout]
+    assert_equal 2, execution.options[:timeout]
+  end
+  
 end

@@ -134,4 +134,14 @@ class TestExecution < Test::Unit::TestCase
     assert_raise(klass){ execution.join }
   end
   
+  def test_new_with_options
+    old_options = ThreadStorm.options.dup
+    ThreadStorm.options[:timeout] = 10
+    execution = ThreadStorm::Execution.new
+    assert_equal 10, execution.options[:timeout]
+    execution = ThreadStorm::Execution.new :timeout => 5
+    assert_equal 5, execution.options[:timeout]
+    ThreadStorm.options.replace(old_options) # Be sure to restore to previous state.
+  end
+  
 end

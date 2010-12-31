@@ -37,4 +37,13 @@ class TestCallbacks < Test::Unit::TestCase
     assert storm.threads.all?{ |thread| thread.alive? }
   end
   
+  def test_initialized_callback
+    counter  = 0
+    callback = Proc.new{ counter += 1 }
+    
+    assert_equal 0, counter
+    execution = ThreadStorm::Execution.new :initialized_callback => callback
+    assert_equal 1, counter
+  end
+  
 end

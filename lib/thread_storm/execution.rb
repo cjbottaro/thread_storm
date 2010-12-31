@@ -42,23 +42,55 @@ class ThreadStorm
     
     attr_reader :block, :thread #:nodoc:
     
+    # call-seq:
+    #   new(options = {}) -> Execution
+    #   new(*args){ |*args| ... } -> Execution
+    #
     # Create an execution. The execution will be in the :initialized state. Call
     # ThreadStorm#execute to schedule the execution to be run and transition
     # it into the :queued state.
+    # 
+    # Default options come from the global <tt>ThreadStorm.options</tt>.  If you want options specific
+    # to a ThreadStorm instance, use ThreadStorm#new_execution.
     def initialize(*args, &block)
-      @options = {}
+      if block_given?
+        @args = args
+        @block = block
+        @options = ThreadStorm.options.dup
+      elsif args.length == 0
+        @args = []
+        @block = nil
+        @options = ThreadStorm.options.dup
+      elsif args.length == 1 and args.first.kind_of?(Hash)
+        @args = []
+        @block = nil
+        @options = ThreadStorm.options.merge(args.first)
+      else
+        raise ArgumentError, "illegal call-seq"
+      end
+      
       @state = nil
       @state_at = []
-      @args = args
       @value = nil
-      @block = block
       @exception = nil
-      @timeout = false
       @thread = nil
       @lock = Monitor.new
       @cond = @lock.new_cond
       @callback_exceptions = {}
+      
       enter_state(:initialized)
+    end
+    
+    # This code:
+    #   execution = ThreadStorm::Execution.new
+    #   execution.define(1, 2, 3){ |a1, a2, a3| ... some code ... }
+    # Is equivalent to:
+    #   ThreadStorm::Execution.new(1, 2, 3){ |a1, a2, a3| ... some code ... }
+    # The advantage is that you can use the first form of Execution.new to pass in options.
+    def define(*args, &block)
+      @args = args
+      @block = block
+      self
     end
     
     # Returns the state of an execution.  If _how_ is set to :sym, returns the state as symbol.
