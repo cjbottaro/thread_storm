@@ -35,7 +35,7 @@ class ThreadStorm
         @cond2.wait_until{ @size < @max_size } if @enqueue_blocks
         @size += 1
         @array << item
-        @cond1.signal
+        @cond1.broadcast
       end
     end
     
@@ -53,7 +53,7 @@ class ThreadStorm
     def decr_size
       @lock.synchronize do
         @size -= 1 unless @size == 0
-        @cond2.signal
+        @cond2.broadcast
       end
     end
     
