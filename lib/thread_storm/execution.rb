@@ -4,8 +4,6 @@ class ThreadStorm
   # Encapsulates a unit of work to be sent to the thread pool.
   class Execution
     
-    class TimeoutError < Timeout::Error; end
-    
     # When an execution has been created, but hasn't been scheduled to run.
     STATE_INITIALIZED = 0
     # When an execution has been scheduled to run but is waiting for an available thread.
@@ -197,12 +195,12 @@ class ThreadStorm
     
     # True if the execution finished without failure (exception) or timeout.
     def success?
-      state?(:finished) and !exception? and !timeout?
+      !exception? and !timeout?
     end
     
     # True if this execution raised an exception.
     def failure?
-      state?(:finished) and !!@exception and !timeout?
+      !!@exception and !timeout?
     end
     
     # Deprecated... for backwards compatibility.

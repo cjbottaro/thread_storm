@@ -12,8 +12,8 @@ class TestExecution < Test::Unit::TestCase
     block = Proc.new{ nil } unless block_given?
     ThreadStorm::Execution.new(*args, &block).tap do |execution|
       execution.options.replace :timeout => nil,
-                                :timeout_method => Proc.new{ |seconds, &block| Timeout.timeout(seconds, ThreadStorm::Execution::TimeoutError, &block) },
-                                :timeout_exception => ThreadStorm::Execution::TimeoutError,
+                                :timeout_method => Proc.new{ |seconds, &block| Timeout.timeout(seconds, ThreadStorm::TimeoutError, &block) },
+                                :timeout_exception => ThreadStorm::TimeoutError,
                                 :default_value => nil,
                                 :reraise => false
     end
@@ -56,7 +56,7 @@ class TestExecution < Test::Unit::TestCase
     execution.execute
     assert ! execution.exception?
     assert execution.timeout?
-    assert execution.exception.kind_of?(ThreadStorm::Execution::TimeoutError)
+    assert execution.exception.kind_of?(ThreadStorm::TimeoutError)
     assert_equal 2, execution.value
   end
   

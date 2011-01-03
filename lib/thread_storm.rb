@@ -18,8 +18,8 @@ class ThreadStorm
   DEFAULTS = { :size => 2,
                :execute_blocks => false,
                :timeout => nil,
-               :timeout_method => Proc.new{ |seconds, &block| Timeout.timeout(seconds, Execution::TimeoutError, &block) },
-               :timeout_exception => Execution::TimeoutError,
+               :timeout_method => Proc.new{ |seconds, &block| Timeout.timeout(seconds, TimeoutError, &block) },
+               :timeout_exception => TimeoutError,
                :default_value => nil,
                :reraise => true }.freeze
   
