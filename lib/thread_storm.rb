@@ -8,8 +8,7 @@ require "thread_storm/worker"
 # Simple but powerful thread pool implementation.
 class ThreadStorm
   
-  class TimeoutError < RuntimeError; end
-  class TimeoutExit < RuntimeError; end
+  class TimeoutError < Exception; end
   
   # Version of ThreadStorm that you are using.
   VERSION = File.read(File.dirname(__FILE__)+"/../VERSION").chomp
@@ -18,8 +17,8 @@ class ThreadStorm
   DEFAULTS = { :size => 2,
                :execute_blocks => false,
                :timeout => nil,
-               :timeout_method => Proc.new{ |seconds, &block| Timeout.timeout(seconds, TimeoutError, &block) },
-               :timeout_exception => TimeoutError,
+               :timeout_method => Timeout.method(:timeout),
+               :timeout_exception => Timeout::Error,
                :default_value => nil,
                :reraise => true }.freeze
   
@@ -34,53 +33,6 @@ class ThreadStorm
   
   # Array of executions in order as they are defined by calls to ThreadStorm#execute.
   attr_reader :executions
-  
-  THIS_FILE = /\A#{Regexp.quote(__FILE__)}:/o
-  CALLER_OFFSET = ((c = caller[0]) && THIS_FILE =~ c) ? 1 : 0
-  
-  def self.timeout(seconds, exception = TimeoutError, &block)
-    lock = Monitor.new
-    cond = lock.new_cond
-    done = false
-    fail = false
-    exit = Class.new(TimeoutExit)
-    
-    thread = Thread.new do
-      begin
-        block.call(seconds)
-      rescue Exception => e
-        raise
-      ensure
-        lock.synchronize{ done = true; cond.signal }
-      end
-    end
-    
-    begin
-      lock.synchronize{ cond.wait(seconds) unless done }
-    rescue TimeoutExit => e
-      thread.raise e.class.new("execution expired") # Very important to make a new instance of e's class; don't just reraise e in the thread!
-      thread.join
-    end
-    
-    return thread.value if done and not fail
-    
-    thread.raise exit, "execution expired"
-    begin
-      thread.join
-    rescue exit => e
-      puts "!!!!!!!!!!!!!!!!!!"
-      puts caller
-      puts "!!!!!!!!!!!!!!!!!!"
-      # rej = /\A#{Regexp.quote(__FILE__)}:#{__LINE__-4}\z/o
-      #       (bt = e.backtrace).reject! {|m| rej =~ m}
-      #       level = -caller(CALLER_OFFSET).size
-      #       while THIS_FILE =~ bt[level]
-      #         bt.delete_at(level)
-      #         level += 1
-      #       end
-      raise exception, e.message, e.backtrace
-    end
-  end
   
   # call-seq:
   #   new(options = {}) -> thread_storm
