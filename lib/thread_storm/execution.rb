@@ -211,6 +211,9 @@ class ThreadStorm
       !!@exception and @exception.kind_of?(options[:timeout_exception])
     end
     
+    # Deprecated... for backwards compatibility.
+    alias_method :timed_out?, :timeout? #:nodoc:
+    
     def callback_exception?(state = nil)
       ![nil, {}].include?(callback_exception(state))
     end

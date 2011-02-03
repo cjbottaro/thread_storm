@@ -4,12 +4,16 @@ Simple thread pool with a few advanced features.
 
 == Features
 
+Some notable features.
+
   * execution state querying
   * timeouts and configurable timeout implementation
   * graceful error handling
   * unit tests
 
 == Example
+
+A simple example to get you started.
 
   storm = ThreadStorm.new :size => 2
   storm.execute{ sleep(0.01); "a" }
@@ -24,29 +28,49 @@ You can query the state of an execution.
 
   storm = ThreadStorm.new :size => 2
   execution = storm.execute{ sleep(0.01); "a" }
-  storm.execute{ sleep(0.01); "b" }
-  storm.execute{ sleep(0.01); "c" }
-  storm.join
-  execution.started?   # true
-  execution.finished?  # true
-  execution.timed_out? # false
-  execution.duration   # ~0.01
-  execution.value      # "a"
+  execution.join
+  execution.finished? # true
+
+
+An execution can be in one of 4 states at any given time: +initialized+, +queued+, +started+, +finished+
+
+Initialized means the execution has been created, but not yet scheduled to be run by the thread pool (i.e. ThreadStorm#execute hasn't been called on it yet).
+
+Queued means the execution has been scheduled to run, but there are no free threads available to run it yet.
+
+Started means that it is currently running on a thread.
+
+Finished means it has completed running.
+
+== Execution status
+
+You can query the status of an execution.
+
+  storm = ThreadStorm.new :size => 2
+  execution = storm.execute{ sleep(0.01); "a" }
+  execution.join
+  execution.success? # true
+  execution.failure? # false
+  execution.timeout? # false
+
+An execution can have one of three statuses after it has entered the +finished+ state: +success+, +failure+, +timeout+
+
+Success means it finished without raising an exception.
+
+Failure means it raised an exception.
+
+Timeout means it ran longer than the timeout limit and was aborted.
 
 == Timeouts
 
 You can restrict how long executions are allowed to run for.
 
-  storm = ThreadStorm.new :size => 2, :timeout => 0.02, :default_value => "failed"
-  storm.execute{ sleep(0.01); "a" }
-  storm.execute{ sleep(0.03); "b" }
-  storm.execute{ sleep(0.01); "c" }
-  storm.join
-  storm.executions[1].started?   # true
-  storm.executions[1].finished?  # true
-  storm.executions[1].timed_out? # true
-  storm.executions[1].duration   # ~0.02
-  storm.executions[1].value      # "failed"
+  storm = ThreadStorm.new :size => 2, :timeout => 0.02
+  execution = storm.execute{ sleep(0.03); "b" }
+  execution.join
+  execution.finished?  # true
+  execution.timeout?   # true
+  executions.duration   # ~0.02
 
 == Error handling
 
@@ -54,8 +78,9 @@ If an execution causes an exception, it will be reraised when ThreadStorm#join (
 
   storm = ThreadStorm.new :size => 2, :reraise => false, :default_value => "failure"
   execution = storm.execute{ raise("busted"); "a" }
-  storm.join
-  execution.value # "failure"
+  execution.join
+  execution.failure?  # true
+  execution.value     # "failure"
   execution.exception # RuntimeError: busted
 
 == Joining vs shutting down
@@ -74,14 +99,14 @@ Sometimes it can be a pain to remember to call #shutdown, so as a convenience, y
 
 == Configurable timeout method
 
-<tt>Timeout.timeout</tt> is unreliable in MRI 1.8.x.  To address this, you can have ThreadStorm use an alternative implementation.
+<tt>Timeout.timeout</tt> is unreliable in MRI 1.8.  To address this, you can have ThreadStorm use an alternative implementation.
 
  require "system_timer"
  storm = ThreadStorm.new :timeout_method => SystemTimer.method(:timeout) do
    ...
  end
  
-The <tt>:timeout_method</tt> option takes any callable object (i.e. <tt>responds_to?(:call)</tt>) that implements something similar to <tt>Timeout.timeout</tt> (i.e. takes the same arguments and raises <tt>Timeout::Error</tt>).
+The <tt>:timeout_method</tt> option takes any callable object that has the same signature as <tt>Timeout.timeout</tt>.
 
   require "system_timer"
   storm = ThreadStorm.new :timeout_method => Proc.new{ |seconds, &block| SystemTimer.timeout(seconds, &block) }
@@ -89,6 +114,8 @@ The <tt>:timeout_method</tt> option takes any callable object (i.e. <tt>responds
   end
 
 == Caveats and Gotchas
+
+This is tricky...
 
   ThreadStorm.new do |s|
     s.execute{ raise RuntimeError }
@@ -99,8 +126,7 @@ The <tt>:timeout_method</tt> option takes any callable object (i.e. <tt>responds
     end
   end
 
-This will still raise an exception because if you pass a block to new, ThreadStorm#join will be
-called after the the block has run.  This same problem is applicable to ThreadStorm#run also.
+This will still raise an exception because ThreadStorm#join will be called again after the block is finished. This same problem happens with ThreadStorm#run.
 
 == Copyright
 
