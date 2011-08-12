@@ -39,6 +39,7 @@ class ThreadStorm
     attr_reader :options
     
     attr_reader :block, :thread #:nodoc:
+    alias_method :primitive, :thread
     
     # call-seq:
     #   new(options = {}) -> Execution

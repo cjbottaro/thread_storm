@@ -1,3 +1,7 @@
+0.7.1
+ - Aliased +threads+ to +primitives+ to align interface with FiberStorm.
+0.7.0
+ - Internal refactoring.
 0.6.0
  - Fixed a bug with the :execute_blocks option.
  - ThreadStorm::Execution#options (options specific to an execution).

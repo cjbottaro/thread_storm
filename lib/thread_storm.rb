@@ -148,6 +148,8 @@ class ThreadStorm
   def threads
     @workers.collect{ |worker| worker.thread }
   end
+
+  alias_method :primitives, :threads
   
   # Removes executions stored at ThreadStorm#executions.  You can selectively remove
   # them by passing in a block or a symbol.  The following two lines are equivalent.
