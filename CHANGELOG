@@ -1,46 +1,53 @@
+0.7.2
+  - Lots of RSpecs.
+  - Cleaned up tests so they don't leave orphaned threads everywhere.
+  - Refactored with WorkerComm class.
+    - Separate queue synchronization from :execute_blocks synchronization.
+  - Use #signal instead of #broadcast where appropriate.
+  - ThreadStorm#shutdown(:now) kills threads instead of trying to shutdown gracefully.
 0.7.1
- - Aliased +threads+ to +primitives+ to align interface with FiberStorm.
+  - Aliased +threads+ to +primitives+ to align interface with FiberStorm.
 0.7.0
- - Internal refactoring.
+  - Internal refactoring.
 0.6.0
- - Fixed a bug with the :execute_blocks option.
- - ThreadStorm::Execution#options (options specific to an execution).
- - Added ThreadStorm#options (options specific to a ThreadStorm instance).
- - Added ThreadStorm.options (global options).
- - Removed ThreadStorm#size.
- - Removed ThreadStorm#busy_workers.
- - ThreadStorm#execution can now take an execution instance.
- - ThreadStorm::Execution.new creates an execution in the :new state.
- - Execution states (:new, :queued, :started, :finished)
- - Changed Execution#duration to return nil if the execution is not in the :started or :finished state.
+  - Fixed a bug with the :execute_blocks option.
+  - ThreadStorm::Execution#options (options specific to an execution).
+  - Added ThreadStorm#options (options specific to a ThreadStorm instance).
+  - Added ThreadStorm.options (global options).
+  - Removed ThreadStorm#size.
+  - Removed ThreadStorm#busy_workers.
+  - ThreadStorm#execution can now take an execution instance.
+  - ThreadStorm::Execution.new creates an execution in the :new state.
+  - Execution states (:new, :queued, :started, :finished)
+  - Changed Execution#duration to return nil if the execution is not in the :started or :finished state.
 
 0.5.1
- - Fixed crash when calling Execution#duration before it has started.
- - ThreadStorm#clear_executions can now take no arguments at all.
- - Execution#value implicitly calls Execution#join.
+  - Fixed crash when calling Execution#duration before it has started.
+  - ThreadStorm#clear_executions can now take no arguments at all.
+  - Execution#value implicitly calls Execution#join.
 
 0.5.0
- - Refactored to use Monitor.
- - Implemented ThreadStorm#clear_executions.
- - Implemented the :execute_blocks option.
+  - Refactored to use Monitor.
+  - Implemented ThreadStorm#clear_executions.
+  - Implemented the :execute_blocks option.
  
 0.4.0
- - Renamed to thread_storm... ugh.
- - Simplified the shutdown process by using my own thread safe queue.
- - Removed timing based tests.
- - Much more efficient ThreadStorm#join.
- - Added Execution#join.
- - Configurable Timeout implementation.
+  - Renamed to thread_storm... ugh.
+  - Simplified the shutdown process by using my own thread safe queue.
+  - Removed timing based tests.
+  - Much more efficient ThreadStorm#join.
+  - Added Execution#join.
+  - Configurable Timeout implementation.
 
 0.3.0
- - PoolParty#new now takes an optional block.
+  - PoolParty#new now takes an optional block.
  
 0.2.0
- - Renamed to pool_party.
- - Fixed PoolParty#shutdown for real.
+  - Renamed to pool_party.
+  - Fixed PoolParty#shutdown for real.
 
 0.1.1
   - Fixed ThreadPool#shutdown.
 
 0.1.0
- - Initial version
+  - Initial version
