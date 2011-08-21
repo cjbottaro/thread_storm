@@ -4,6 +4,7 @@ require "thread_storm/active_support"
 require "thread_storm/queue"
 require "thread_storm/execution"
 require "thread_storm/worker"
+require "thread_storm/worker_comm"
 
 # Simple but powerful thread pool implementation.
 class ThreadStorm
@@ -58,10 +59,23 @@ class ThreadStorm
   #   storm.join
   #   storm.shutdown
   def initialize(options = {})
+
+    # Merge options with the global options.
     @options = options.reverse_merge(self.class.options)
-    @queue = Queue.new(@options[:size], @options[:execute_blocks])
+
+    # Setup the queue.
+    @queue = Queue.new(@options[:size])
+
+    # Initialize our executions tracking.
     @executions = []
-    @workers = (1..@options[:size]).collect{ Worker.new(@queue) }
+
+    # Initialize the worker communication.
+    @worker_comm = WorkerComm.new(@options[:size])
+
+    # Initialize the workers and wait for them to start.
+    @workers = @options[:size].times.collect{ Worker.new(@queue, @worker_comm) }
+
+    # Run if block is given.
     run{ yield(self) } if block_given?
   end
   
@@ -109,12 +123,11 @@ class ThreadStorm
       raise ArgumentError, "execution or arguments and block expected"
     end
     
-    @queue.synchronize do |q|
-      q.enqueue(execution)
-      execution.queued! # This needs to be in here or we'll get a race condition to set the execution's state.
-    end
-    
+    @worker_comm.wait_until_free_worker if options[:execute_blocks]
+
+    execution.queued!
     @executions << execution
+    @queue.enqueue(execution)
     
     execution
   end
@@ -134,9 +147,17 @@ class ThreadStorm
   
   # Signals the worker threads to terminate immediately (ignoring any pending
   # executions) and blocks until they do.
-  def shutdown
-    @queue.shutdown
-    threads.each{ |thread| thread.join }
+  def shutdown(how = :graceful)
+    case how
+    when :graceful
+      @queue.shutdown
+      threads.each{ |thread| thread.join }
+    when :now
+      threads.each do |thread|
+        thread.kill
+        Thread.pass while thread.alive?
+      end
+    end
     true
   end
   

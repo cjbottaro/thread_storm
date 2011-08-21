@@ -7,7 +7,26 @@ $LOAD_PATH.unshift(File.dirname(__FILE__))
 require 'thread_storm'
 require 'timecop'
 
+require "thread_storm/atc"
+Atc = ThreadStorm::Atc
+
 class Test::Unit::TestCase
+
+  def setup
+    # Only 1 thread should be running at the start of each test.
+    Thread.list.each do |thread|
+      if thread != Thread.current
+        while thread.alive?
+          thread.kill
+          Thread.pass
+        end
+      end
+    end
+  end
+
+  def teardown
+    assert_equal 1, Thread.list.length, "#{Thread.list.length - 1} thread(s) not cleaned up"
+  end  
   
   def assert_in_delta(expected, actual, delta)
     assert (expected - actual).abs < delta, "#{actual} is not within #{delta} of #{expected}"

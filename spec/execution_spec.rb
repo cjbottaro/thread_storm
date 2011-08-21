@@ -15,7 +15,7 @@ shared_context "executed executions" do
 end
 
 describe ThreadStorm::Execution do
-  before(:each){ @atc = ATC.new }
+  before(:each){ @atc = Atc.new }
 
   context "calling #new" do
     it "should return an execution in the initialized state" do
@@ -167,7 +167,7 @@ describe ThreadStorm::Execution do
     before(:all) do
       Timecop.freeze
       ThreadStorm.new :size => 1 do |storm|
-        atc = ATC.new
+        atc = Atc.new
         storm.execute{ atc.signal(1); atc.wait(2) }
         @exec = described_class.new{ atc.signal(3); atc.wait(4) }
         atc.wait(1)
@@ -328,7 +328,7 @@ describe ThreadStorm::Execution do
                                   :queued_callback => queued_callback,
                                   :started_callback => started_callback,
                                   :finished_callback => finished_callback
-      atc = ATC.new
+      atc = Atc.new
       ThreadStorm.new(:size => 1) do |storm|
         storm.execute{ atc.signal(1); atc.wait(2) }
         atc.wait(1)

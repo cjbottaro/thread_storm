@@ -1,7 +1,7 @@
 require 'helper'
 
 class TestThreadStorm < Test::Unit::TestCase
-  
+
   def new_storm(options = {})
     @storm = ThreadStorm.new(options)
   end
@@ -73,6 +73,8 @@ class TestThreadStorm < Test::Unit::TestCase
     assert_equal :finished, e1.state(:sym)
     assert_equal :finished, e2.state(:sym)
     assert_equal :finished, e3.state(:sym)
+
+    storm.shutdown
   end
   
   def test_partial_concurrency
@@ -101,6 +103,8 @@ class TestThreadStorm < Test::Unit::TestCase
     assert_equal :finished, e1.state(:sym)
     assert_equal :finished, e2.state(:sym)
     assert_equal :finished, e3.state(:sym)
+
+    storm.shutdown
   end
   
   def test_full_concurrency
@@ -125,6 +129,8 @@ class TestThreadStorm < Test::Unit::TestCase
     assert_equal :finished, e1.state(:sym)
     assert_equal :finished, e2.state(:sym)
     assert_equal :finished, e3.state(:sym)
+
+    storm.shutdown
   end
   
   def test_timeout
@@ -183,6 +189,7 @@ class TestThreadStorm < Test::Unit::TestCase
     end
     storm.join
     assert_equal %w[one two three four five], storm.values
+    storm.shutdown
   end
   
   def test_new_with_block
@@ -195,22 +202,64 @@ class TestThreadStorm < Test::Unit::TestCase
     assert_equal thread_count, Thread.list.length
     assert_equal %w[one two three], storm.values
     assert_all_threads_worked(storm)
+    storm.shutdown
+  end
+
+  # This tests a case when execute shouldn't block.
+  # We have a storm of size 1 and we execute a single thing.
+  def test_execute_blocks_1
+    ThreadStorm.new :size => 1, :execute_blocks => true do |storm|
+      storm.execute{ nil }
+    end
+  end
+
+  # This tests a case when execute should't block.
+  # We have a storm of size 3 and we execute 3 things.
+  def test_execute_blocks_2
+    storm = ThreadStorm.new :size => 3, :execute_blocks => true
+    storm.execute{ sleep }
+    storm.execute{ sleep }
+    storm.execute{ sleep }
+    storm.shutdown(:now)
+  end
+
+  # This tests a case when execute should block.
+  # We have storm of size 1 and we execute two things.
+  def test_execute_blocks_3
+    atc = Atc.new
+    storm = ThreadStorm.new :size => 1, :execute_blocks => true
+    storm.execute{ atc.signal(1); atc.wait(2) }
+    atc.wait(1)
+    begin
+      storm.execute{ nil }
+    rescue Exception => e
+      assert_equal "fatal", e.class.name
+      assert_equal "deadlock detected", e.message
+    end
+    storm.shutdown(:now)
   end
   
   def test_execute_blocks
+    storm1 = ThreadStorm.new :size => 1, :execute_blocks => true
+    storm2 = ThreadStorm.new :size => 1, :execute_blocks => false
+
     t1 = Thread.new do
-      storm = ThreadStorm.new :size => 1, :execute_blocks => true
-      storm.execute{ sleep }
-      storm.execute{ nil }
+      storm1.execute{ sleep }
+      storm1.execute{ nil }
     end
     t2 = Thread.new do
-      storm = ThreadStorm.new :size => 1, :execute_blocks => false
-      storm.execute{ sleep }
-      storm.execute{ nil }
+      storm2.execute{ sleep }
+      storm2.execute{ nil }
     end
+
     sleep(0.1) # How else??
     assert_equal "sleep", t1.status
     assert_equal false, t2.status
+
+    storm1.shutdown(:now)
+    storm2.shutdown(:now)
+    (t1.kill; Thread.pass) while t1.alive?
+    (t2.kill; Thread.pass) while t2.alive?
   end
   
   def test_clear_executions
@@ -222,6 +271,7 @@ class TestThreadStorm < Test::Unit::TestCase
     finished = storm.clear_executions(:finished?)
     assert_equal 2, finished.length
     assert_equal 1, storm.executions.length
+    storm.shutdown(:now)
   end
   
   def test_execution_blocks_again
@@ -288,6 +338,7 @@ class TestThreadStorm < Test::Unit::TestCase
   def test_global_options
     storm = ThreadStorm.new
     assert_equal ThreadStorm::DEFAULTS, storm.options
+    storm.shutdown
     
     ThreadStorm.options[:size] = 5
     ThreadStorm.options[:timeout] = 10
@@ -297,7 +348,8 @@ class TestThreadStorm < Test::Unit::TestCase
     assert_equal 5, storm.options[:size]
     assert_equal 10, storm.options[:timeout]
     assert_equal "new_default_value", storm.options[:default_value]
-    
+    storm.shutdown
+
     # !IMPORTANT! So the rest of the tests work...
     ThreadStorm.options.replace(ThreadStorm::DEFAULTS)
   end
@@ -323,6 +375,8 @@ class TestThreadStorm < Test::Unit::TestCase
     assert e3.duration < 0.4
     
     assert_raises(RuntimeError, TypeError){ e1.options[:timeout] = 0.4 }
+    
+    storm.shutdown
   end
   
   def test_new_execution_with_options
@@ -337,6 +391,8 @@ class TestThreadStorm < Test::Unit::TestCase
     assert_equal nil, ThreadStorm.options[:timeout]
     assert_equal 1, storm.options[:timeout]
     assert_equal 2, execution.options[:timeout]
+
+    storm.shutdown
   end
   
 end

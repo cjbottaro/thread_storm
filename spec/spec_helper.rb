@@ -11,21 +11,5 @@ RSpec.configure do |config|
   config.mock_with :rr
 end
 
-class ATC
-  def initialize
-    @count = 0
-    @lock = Mutex.new
-    @cond = ConditionVariable.new
-  end
-  def wait(n)
-    @lock.synchronize do
-      @cond.wait(@lock) while @count < n
-    end
-  end
-  def signal(n)
-    @lock.synchronize do
-      @count = n
-      @cond.signal
-    end
-  end
-end
+require "thread_storm/atc"
+Atc = ThreadStorm::Atc

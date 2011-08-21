@@ -1,7 +1,7 @@
 require 'helper'
 
 class TestCallbacks < Test::Unit::TestCase
-  
+
   # The general premise of this test is that we assign a callback to increment
   # this counter when we enter each state.
   def test_state_callbacks
@@ -20,6 +20,8 @@ class TestCallbacks < Test::Unit::TestCase
     
     execution.execute
     assert_equal 3, counter
+
+    storm.shutdown
   end
   
   def test_callback_exception
@@ -35,6 +37,7 @@ class TestCallbacks < Test::Unit::TestCase
     assert_equal RuntimeError, e.callback_exception(:queued).class
     assert_equal "oops", e.callback_exception(:queued).message
     assert storm.threads.all?{ |thread| thread.alive? }
+    storm.shutdown
   end
   
   def test_initialized_callback
