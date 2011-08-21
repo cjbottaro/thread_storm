@@ -13,6 +13,8 @@ class ThreadStorm
   # imply that the worker thread has actually finished the execution and is ready to
   # accept another one.
   class Queue #:nodoc:
+    attr_reader :array # This is for testing only!
+    attr_reader :size  # So is this!
     
     def initialize(max_size, enqueue_blocks)
       @max_size       = max_size
