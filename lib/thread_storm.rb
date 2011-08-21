@@ -145,8 +145,9 @@ class ThreadStorm
     join and @executions.collect{ |execution| execution.value }
   end
   
-  # Signals the worker threads to terminate immediately (ignoring any pending
-  # executions) and blocks until they do.
+  # Signals the worker threads to terminate.
+  # If :how is set to :graceful, then the worker threads will terminate after processing any currently running executions.
+  # If :how is set to :now, then #kill will be sent to each thread and we block until each thread is no longer #alive?.
   def shutdown(how = :graceful)
     case how
     when :graceful
