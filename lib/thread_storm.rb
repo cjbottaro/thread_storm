@@ -65,16 +65,12 @@ class ThreadStorm
     run{ yield(self) } if block_given?
   end
   
-  # This is like Execution.new except the default options are specific this ThreadStorm instance.
-  #   ThreadStorm.options[:timeout]
-  #   # => nil
-  #   storm = ThreadStorm.new :timeout => 1
-  #   execution = storm.new_execution
-  #   execution.options[:timeout]
-  #   # => 1
-  #   execution = ThreadStorm::Execution.new
-  #   execution.options[:timeout]
-  #   # => nil
+  # This is like Execution.new except it inherits options from the storm instance.
+  # This method is best explained with examples:
+  #   storm.new_execution                     <=> Execution.new(storm.options)
+  #   storm.new_execution(:timeout => 1)      <=> Execution.new(storm.options.merge(:timeout => 1))
+  #   storm.new_execution(arg1, arg2){ blah } <=> Execution.new(storm.options).define(arg1, arg1){ blah }
+  # Note in these examples Execution is an alias for ThreadStorm::Execution.
   def new_execution(*args, &block)
     
     # It has to be this way because of how options are merged.
